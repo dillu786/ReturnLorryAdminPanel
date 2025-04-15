@@ -1,70 +1,25 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, MoreHorizontal, Filter } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Plus, Search, Filter, Eye, Edit } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
+import { getRoles } from "@/app/actions/role-actions"
+import { DeleteRoleButton } from "@/components/delete-role-button"
 
-export default function AccessControlPage() {
-  // Mock data for roles
-  const roles = [
-    {
-      id: "1",
-      name: "Super Admin",
-      description: "Full access to all system features",
-      users: 2,
-      permissions: "All",
-      created: "Jan 10, 2023",
-    },
-    {
-      id: "2",
-      name: "Admin",
-      description: "Access to most system features except critical settings",
-      users: 5,
-      permissions: "Most",
-      created: "Jan 15, 2023",
-    },
-    {
-      id: "3",
-      name: "Manager",
-      description: "Can manage users, drivers, and view reports",
-      users: 8,
-      permissions: "Limited",
-      created: "Feb 3, 2023",
-    },
-    {
-      id: "4",
-      name: "Support",
-      description: "Can view and respond to user inquiries",
-      users: 12,
-      permissions: "Basic",
-      created: "Mar 22, 2023",
-    },
-    {
-      id: "5",
-      name: "Viewer",
-      description: "Read-only access to dashboards and reports",
-      users: 20,
-      permissions: "Read-only",
-      created: "Apr 15, 2023",
-    },
-  ]
+export default async function AccessControlPage() {
+  const roles = await getRoles()
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Access Control</h2>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Role
-        </Button>
+        <Link href="/access-control/new-role">
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Role
+          </Button>
+        </Link>
       </div>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -87,50 +42,49 @@ export default function AccessControlPage() {
                 <TableHead className="hidden md:table-cell">Description</TableHead>
                 <TableHead className="hidden md:table-cell">Users</TableHead>
                 <TableHead className="hidden md:table-cell">Permissions</TableHead>
-                <TableHead className="hidden md:table-cell">Created</TableHead>
+                <TableHead className="hidden md:table-cell">System Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {roles.map((role) => (
+              {roles.map((role: {
+                id: string;
+                name: string;
+                description: string;
+                _count: {
+                  users: number;
+                  permissions: number;
+                };
+                isSystemRole: boolean;
+              }) => (
                 <TableRow key={role.id}>
                   <TableCell className="font-medium">{role.name}</TableCell>
                   <TableCell className="hidden md:table-cell">{role.description}</TableCell>
-                  <TableCell className="hidden md:table-cell">{role.users}</TableCell>
+                  <TableCell className="hidden md:table-cell">{role._count.users}</TableCell>
+                  <TableCell className="hidden md:table-cell">{role._count.permissions}</TableCell>
                   <TableCell className="hidden md:table-cell">
-                    <Badge
-                      variant={
-                        role.permissions === "All"
-                          ? "default"
-                          : role.permissions === "Most"
-                            ? "success"
-                            : role.permissions === "Limited"
-                              ? "secondary"
-                              : "outline"
-                      }
-                    >
-                      {role.permissions}
-                    </Badge>
+                    {role.isSystemRole ? (
+                      <Badge variant="secondary">System</Badge>
+                    ) : (
+                      <Badge variant="outline">Custom</Badge>
+                    )}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">{role.created}</TableCell>
                   <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Actions</span>
+                    <div className="flex justify-end gap-2">
+                      <Link href={`/access-control/view/${role.id}`}>
+                        <Button variant="ghost" size="icon" title="View Role">
+                          <Eye className="h-4 w-4" />
+                          <span className="sr-only">View</span>
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>View details</DropdownMenuItem>
-                        <DropdownMenuItem>Edit role</DropdownMenuItem>
-                        <DropdownMenuItem>Manage permissions</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">Delete role</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      </Link>
+                      <Link href={`/access-control/edit/${role.id}`}>
+                        <Button variant="ghost" size="icon" title="Edit Role">
+                          <Edit className="h-4 w-4" />
+                          <span className="sr-only">Edit</span>
+                        </Button>
+                      </Link>
+                      {!role.isSystemRole && <DeleteRoleButton roleId={role.id} roleName={role.name} />}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

@@ -8,6 +8,7 @@ import { Eye, EyeOff, Truck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { signIn } from "next-auth/react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function LoginPage() {
@@ -20,12 +21,18 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-
+    e.preventDefault();
+    const res = await signIn('credentials', {
+      email,
+      password,
+      redirect: true,
+      callbackUrl: '/dashboard' // where to go after login
+    });
     // Simulate authentication delay
-    setTimeout(() => {
-      setIsLoading(false)
-      router.push("/dashboard")
-    }, 1500)
+    // setTimeout(() => {
+    //   setIsLoading(false)
+    //   router.push("/dashboard")
+    // }, 1500)
   }
 
   return (
