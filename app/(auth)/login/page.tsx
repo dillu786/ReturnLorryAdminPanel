@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff, Truck } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,26 +12,44 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function LoginPage() {
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError("")
     setIsLoading(true)
-    e.preventDefault();
-    const res = await signIn('credentials', {
-      email,
-      password,
-      redirect: true,
-      callbackUrl: '/dashboard' // where to go after login
-    });
-    // Simulate authentication delay
-    // setTimeout(() => {
-    //   setIsLoading(false)
-    //   router.push("/dashboard")
-    // }, 1500)
+
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      })
+      console.log("result"+ JSON.stringify(result));
+      if (result?.error) {
+        setError("Invalid email or password")
+        setIsLoading(false)
+        return
+      }
+
+      router.push("/dashboard")
+    } catch (error) {
+      setError("An error occurred. Please try again.")
+      setIsLoading(false)
+    }
+  }
+
+  if (!mounted) {
+    return null
   }
 
   return (
@@ -52,6 +69,9 @@ export default function LoginPage() {
               <CardDescription>Enter your email and password to access your account</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {error && (
+                <div className="text-sm text-red-500 text-center">{error}</div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -61,6 +81,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={isLoading}
                 />
               </div>
               <div className="space-y-2">
@@ -73,6 +94,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                   <Button
                     type="button"
@@ -80,6 +102,7 @@ export default function LoginPage() {
                     size="icon"
                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                     onClick={() => setShowPassword(!showPassword)}
+                    disabled={isLoading}
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4 text-muted-foreground" />

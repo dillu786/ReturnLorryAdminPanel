@@ -40,6 +40,7 @@ export async function hasPermission(adminId: string, permissionCode: string): Pr
  * Get all permissions for an admin
  */
 export async function getUserPermissions(adminId: string) {
+  console.log("adminId",adminId);
   const rolesWithPermissions = await prisma.user_roles.findMany({
     where: {
       adminId,
@@ -181,7 +182,7 @@ export async function createRole(
         description,
         isSystemRole,
         createdById: createdByUserId,
-        updatedAt: Date.now() as unknown as any
+        updatedAt: new Date()
       },
     })
 

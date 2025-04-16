@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useTheme } from "next-themes"
+import { useEffect, useState } from "react"
 
 interface DashboardHeaderProps {
   setSidebarOpen: (open: boolean) => void
@@ -19,6 +20,12 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ setSidebarOpen }: DashboardHeaderProps) {
   const { setTheme, theme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  // Only show the theme UI after mounting to prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-white px-4 md:px-6">
@@ -39,7 +46,11 @@ export function DashboardHeader({ setSidebarOpen }: DashboardHeaderProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="icon">
-              {theme === "dark" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+              {mounted ? (
+                theme === "dark" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />
+              ) : (
+                <Sun className="h-5 w-5" />
+              )}
               <span className="sr-only">Toggle theme</span>
             </Button>
           </DropdownMenuTrigger>

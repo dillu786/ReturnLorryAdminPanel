@@ -1,9 +1,23 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import type { NextAuthOptions } from 'next-auth';
+import { prisma } from '../../../././../db/prisma/prisma';
+import bcrypt from 'bcryptjs';
+
+// Define custom types for our user
+type UserRole = "admin" | "manager" | "operator";
+
+interface CustomUser {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+}
+
+//const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET || 'secr3t',
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -11,33 +25,72 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'text' },
         password: { label: 'Password', type: 'password' }
       },
-      async authorize(credentials) {
-        const { email, password } = credentials ?? {};
-
-        const user = await fakeLogin(email, password);
-
-        if (user) {
-          return user;
+      async authorize(credentials): Promise<CustomUser | null> {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
         }
-        return null;
+
+        try {
+          const user = await prisma.admin.findUnique({
+            where: { email: credentials.email },
+            include: {
+              user_roles_user_roles_adminIdToadmin: {
+                include: {
+                  roles: true
+                }
+              }
+            }
+          });
+
+          if (!user || !user.isActive) {
+            return null;
+          }
+
+          const isValidPassword = await bcrypt.compare(credentials.password, user.passwordHash);
+          
+          if (!isValidPassword) {
+            return null;
+          }
+
+          // Get the user's role from user_roles
+          const userRole = user.user_roles_user_roles_adminIdToadmin[0]?.roles?.name;
+          
+          if (!userRole) {
+            return null;
+          }
+
+          // Update last login
+          await prisma.admin.update({
+            where: { id: user.id },
+            data: { lastLogin: new Date() }
+          });
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.fullName,
+            role: userRole as UserRole
+          };
+        } catch (error) {
+          console.error('Authentication error:', error);
+          return null;
+        }
       }
     })
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // On initial login, attach user data to the token
-
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
+        const customUser = user as CustomUser;
+        token.id = customUser.id;
+        token.role = customUser.role;
       }
       return token;
     },
     async session({ session, token }) {
-      // Add custom token fields to session.user
       if (session.user) {
-        session.user.id = token.id as number;
-        session.user.role = token.role as unknown as any;
+        session.user.id = token.id as string;
+        session.user.role = token.role as UserRole;
       }
       return session;
     }
@@ -45,22 +98,7 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/login'
   }
- 
 };
 
 const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
-
-// Fake login function
-async function fakeLogin(email: string, password: string) {
-    console.log("secret"+  process.env.NEXTAUTH_SECRET)
-  if (email === 'user@example.com' && password === 'password123') {
-    return {
-      id: '1',
-      name: 'Test User',
-      email,
-      role: 'manager'
-    };
-  }
-  return null;
-}
