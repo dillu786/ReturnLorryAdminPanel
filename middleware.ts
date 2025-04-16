@@ -11,6 +11,7 @@ const permissionRequirements: Record<string, string> = {
   "/rides": "rides:view",
   "/documents": "documents:view",
   "/access-control": "settings:access_control",
+  "/settings":"settings:view"
 }
 
 // This function can be marked `async` if using `await` inside
@@ -43,7 +44,8 @@ export async function middleware(request: NextRequest) {
       }
 
       const { permissions } = await response.json()
-
+      console.log(permissions);
+      console.log(path);
       // Check if the user has the required permission
       if (!permissions.includes(requiredPermission)) {
         // Redirect to unauthorized page

@@ -13,6 +13,7 @@ const DUMMY_ROLES = {
     "owners:view",
     "settings:access_control",
     "documents:view",
+    "settings:view"
   ],
   manager: [
     "dashboard:view",

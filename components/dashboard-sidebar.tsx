@@ -66,6 +66,12 @@ export function DashboardSidebar({ open, setOpen }: DashboardSidebarProps) {
       href: "/documents",
       active: pathname === "/documents",
       permission: "documents:view",
+    }, {
+      label: "Settings",
+      icon: FileText,
+      href: "/settings",
+      active: pathname === "/settings",
+      permission: "settings:view",
     },
   ]
 
