@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getUserPermissionCodes } from "@/packages/db/permissions"
+import { getUserPermissionCodes } from "../../../../../db/permisssions"
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
