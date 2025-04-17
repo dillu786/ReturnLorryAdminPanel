@@ -1,8 +1,12 @@
 {
-  "buildCommand": "prisma generate && next build",
-  "installCommand": "npm install",
-  "framework": "nextjs",
-  "env": {
-    "PRISMA_CLIENT_ENGINE_TYPE": "dataproxy"
+  "build": {
+    "env": {
+      "PRISMA_GENERATE_SKIP_AUTOINSTALL": "true"
+    }
+  },
+  "functions": {
+    "api/**.ts": {
+      "runtime": "nodejs18.x"
+    }
   }
-} 
+}
