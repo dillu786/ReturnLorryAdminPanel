@@ -81,7 +81,7 @@ export function DashboardSidebar({ open, setOpen }: DashboardSidebarProps) {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="p-0">
           <div className="flex h-16 items-center border-b px-4">
-            <h2 className="text-lg font-semibold">Return Lorry Admin</h2>
+            {/* <h2 className="text-lg font-semibold">Return Lorry Admin</h2> */}
             <Button variant="ghost" size="icon" className="ml-auto" onClick={() => setOpen(false)}>
               <X className="h-5 w-5" />
               <span className="sr-only">Close</span>
@@ -113,9 +113,9 @@ export function DashboardSidebar({ open, setOpen }: DashboardSidebarProps) {
 
       {/* Desktop Sidebar */}
       <div className="hidden w-64 flex-col border-r bg-white md:flex">
-        <div className="flex h-16 items-center border-b px-4">
+        {/* <div className="flex h-16 items-center border-b px-4">
           <h2 className="text-lg font-semibold">Return Lorry Admin</h2>
-        </div>
+        </div> */}
         <ScrollArea className="flex-1">
           <div className="px-3 py-2">
             <nav className="flex flex-col gap-1">

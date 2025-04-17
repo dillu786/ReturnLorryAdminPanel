@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 
-// Dummy roles and permissions for testing
 const DUMMY_ROLES = {
-  admin: [
+  Admin: [
     "dashboard:view",
     "rides:view",
     "users:view",
@@ -15,30 +14,31 @@ const DUMMY_ROLES = {
     "documents:view",
     "settings:view"
   ],
-  manager: [
+  Manager: [
     "dashboard:view",
     "rides:view",
     "users:view",
     "drivers:view",
     "owners:view",
   ],
-  operator: [
+  Support: [
     "dashboard:view",
     "rides:view",
   ],
 }
 
 export function usePermissions() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [permissions, setPermissions] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
+  const loading = status === "loading"
 
   useEffect(() => {
-    // Simulate loading permissions based on user role
-    // In a real app, this would come from the session or API
-    const userRole = session?.user?.role || "admin"
-    setPermissions(DUMMY_ROLES[userRole as keyof typeof DUMMY_ROLES] || DUMMY_ROLES.admin)
-  }, [session])
+    if (!loading && session?.user?.role) {
+      console.log("session"+session.user.role)
+      const userRole = session.user.role as keyof typeof DUMMY_ROLES
+      setPermissions(DUMMY_ROLES[userRole] || [])
+    }
+  }, [session, loading])
 
   const hasPermission = (permissionCode: string) => {
     return permissions.includes(permissionCode)

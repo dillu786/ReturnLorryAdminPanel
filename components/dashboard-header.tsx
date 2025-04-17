@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
+import { signOut } from "next-auth/react"
 
 interface DashboardHeaderProps {
   setSidebarOpen: (open: boolean) => void
@@ -35,7 +36,7 @@ export function DashboardHeader({ setSidebarOpen }: DashboardHeaderProps) {
           <span className="sr-only">Toggle sidebar</span>
         </Button>
       </div>
-      <div className="hidden md:flex">
+      <div className="hidden md:flex items-center">
         <h1 className="text-xl font-bold">Return Lorry Admin</h1>
       </div>
       <div className="flex items-center gap-4">
@@ -43,7 +44,7 @@ export function DashboardHeader({ setSidebarOpen }: DashboardHeaderProps) {
           <Bell className="h-5 w-5" />
           <span className="sr-only">Notifications</span>
         </Button>
-        <DropdownMenu>
+        {/* <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="icon">
               {mounted ? (
@@ -59,7 +60,7 @@ export function DashboardHeader({ setSidebarOpen }: DashboardHeaderProps) {
             <DropdownMenuItem onClick={() => setTheme("dark")}>Dark</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setTheme("system")}>System</DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>
+        </DropdownMenu> */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -75,7 +76,7 @@ export function DashboardHeader({ setSidebarOpen }: DashboardHeaderProps) {
             <DropdownMenuItem>Profile</DropdownMenuItem>
             <DropdownMenuItem>Settings</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Log out</DropdownMenuItem>
+            <DropdownMenuItem onClick={()=>{signOut()}}>Log out</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
