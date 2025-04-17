@@ -7,8 +7,18 @@ import Link from "next/link"
 import { getRoles } from "@/app/actions/role-actions"
 import { DeleteRoleButton } from "@/components/delete-role-button"
 
+interface Role {
+  id: string;
+  name: string;
+  description: string;
+  isSystemRole: boolean;
+  _count: {
+    role_permissions: number;
+  };
+}
+
 export default async function AccessControlPage() {
-  const roles = await getRoles()
+  const roles = await getRoles() as Role[]
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,21 +57,12 @@ export default async function AccessControlPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {roles.map((role: {
-                id: string;
-                name: string;
-                description: string;
-                _count: {
-                  users: number;
-                  permissions: number;
-                };
-                isSystemRole: boolean;
-              }) => (
+              {roles.map((role) => (
                 <TableRow key={role.id}>
                   <TableCell className="font-medium">{role.name}</TableCell>
                   <TableCell className="hidden md:table-cell">{role.description}</TableCell>
-                  <TableCell className="hidden md:table-cell">{role._count.users}</TableCell>
-                  <TableCell className="hidden md:table-cell">{role._count.permissions}</TableCell>
+                  <TableCell className="hidden md:table-cell">0</TableCell>
+                  <TableCell className="hidden md:table-cell">{role._count.role_permissions}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     {role.isSystemRole ? (
                       <Badge variant="secondary">System</Badge>
