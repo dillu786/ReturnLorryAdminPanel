@@ -4,9 +4,7 @@
       "PRISMA_GENERATE_SKIP_AUTOINSTALL": "true"
     }
   },
-  "functions": {
-    "api/**.ts": {
-      "runtime": "nodejs18.x"
-    }
-  }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ]
 }
