@@ -11,7 +11,7 @@ const permissionRequirements: Record<string, string> = {
   "/owners": "owners:view",
   "/rides": "rides:view",
   "/documents": "documents:view",
-  "/access-control": "settings:access_control",
+  "/access-control": "access_control:view",
   "/settings":"settings:view"
 }
 

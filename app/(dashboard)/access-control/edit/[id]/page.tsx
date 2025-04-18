@@ -12,6 +12,36 @@ import { Label } from "@/components/ui/label"
 import { ArrowLeft, Save, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { getRole, getAllPermissions, updateRole } from "@/app/actions/role-actions"
+import { toast } from "@/components/ui/use-toast"
+
+interface PermissionCategory {
+  id: string
+  name: string
+  description: string | null
+  icon: string | null
+  displayOrder: number
+}
+
+interface Permission {
+  id: string
+  name: string
+  code: string
+  description: string | null
+  categoryId: string
+  permission_categories: PermissionCategory
+}
+
+interface RolePermission {
+  permissions: Permission
+}
+
+interface Role {
+  id: string
+  name: string
+  description: string | null
+  isSystemRole?: boolean
+  role_permissions: RolePermission[]
+}
 
 export default function EditRolePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -19,66 +49,52 @@ export default function EditRolePage({ params }: { params: { id: string } }) {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [role, setRole] = useState<any>(null)
-  const [allPermissions, setAllPermissions] = useState<any[]>([])
+  const [role, setRole] = useState<Role | null>(null)
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set())
+  const [permissions, setPermissions] = useState<Permission[]>([])
   const [formData, setFormData] = useState({
     name: "",
     description: "",
   })
 
-  // Group permissions by category
-  const permissionsByCategory = allPermissions.reduce(
-    (acc, permission) => {
-      const categoryName = permission.category.name
-      if (!acc[categoryName]) {
-        acc[categoryName] = {
-          ...permission.category,
-          permissions: [],
-        }
-      }
-      acc[categoryName].permissions.push(permission)
-      return acc
-    },
-    {} as Record<string, any>,
-  )
-
-  // Sort categories by display order
-  const sortedCategories = Object.values(permissionsByCategory).sort((a, b) => a.displayOrder - b.displayOrder)
-
   useEffect(() => {
-    async function fetchData() {
+    const fetchData = async () => {
       try {
-        const [roleData, permissionsData] = await Promise.all([getRole(roleId), getAllPermissions()])
+        const [roleData, permissionsData] = await Promise.all([
+          getRole(params.id),
+          getAllPermissions()
+        ])
 
-        if (!roleData) {
-          router.push("/access-control")
-          return
+        if (roleData) {
+          setRole(roleData)
+          setSelectedPermissions(new Set(roleData.role_permissions.map(rp => rp.permissions.id)))
         }
-
-        setRole(roleData)
-        setFormData({
-          name: roleData.name,
-          description: roleData.description || "",
-        })
-
-        // Set selected permissions
-        const selected = new Set<string>()
-        roleData.permissions.forEach(({ permission }: any) => {
-          selected.add(permission.id)
-        })
-        setSelectedPermissions(selected)
-
-        setAllPermissions(permissionsData)
+        // Transform the permissions data to match our interface
+        const typedPermissions = permissionsData.flatMap(category => 
+          category.permissions.map(permission => ({
+            id: permission.id,
+            name: permission.name,
+            code: permission.code,
+            description: permission.description,
+            categoryId: permission.categoryId,
+            permission_categories: category
+          }))
+        )
+        setPermissions(typedPermissions)
       } catch (error) {
         console.error("Error fetching data:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load role data",
+          variant: "destructive",
+        })
       } finally {
         setLoading(false)
       }
     }
 
     fetchData()
-  }, [roleId, router])
+  }, [params.id])
 
   const handlePermissionChange = (permissionId: string, checked: boolean) => {
     setSelectedPermissions((prev) => {
@@ -92,62 +108,64 @@ export default function EditRolePage({ params }: { params: { id: string } }) {
     })
   }
 
-  const handleSelectAllInCategory = (categoryPermissions: any[], checked: boolean) => {
-    setSelectedPermissions((prev) => {
-      const newSet = new Set(prev)
-
-      categoryPermissions.forEach((permission) => {
-        if (checked) {
-          newSet.add(permission.id)
-        } else {
-          newSet.delete(permission.id)
-        }
-      })
-
-      return newSet
+  const handleSelectAllInCategory = (categoryPermissions: Permission[], checked: boolean) => {
+    const newSelectedPermissions = new Set(selectedPermissions)
+    categoryPermissions.forEach(permission => {
+      if (checked) {
+        newSelectedPermissions.add(permission.id)
+      } else {
+        newSelectedPermissions.delete(permission.id)
+      }
     })
+    setSelectedPermissions(newSelectedPermissions)
   }
 
-  const isCategoryFullySelected = (categoryPermissions: any[]) => {
-    return categoryPermissions.every((permission) => selectedPermissions.has(permission.id))
+  const isCategoryFullySelected = (categoryPermissions: Permission[]) => {
+    return categoryPermissions.every(permission => selectedPermissions.has(permission.id))
   }
 
-  const isCategoryPartiallySelected = (categoryPermissions: any[]) => {
-    const hasSelected = categoryPermissions.some((permission) => selectedPermissions.has(permission.id))
-    return hasSelected && !isCategoryFullySelected(categoryPermissions)
+  const isCategoryPartiallySelected = (categoryPermissions: Permission[]) => {
+    const selectedCount = categoryPermissions.filter(permission => selectedPermissions.has(permission.id)).length
+    return selectedCount > 0 && selectedCount < categoryPermissions.length
   }
 
   const handleSave = async () => {
-    if (!formData.name.trim()) {
-      alert("Role name is required")
-      return
-    }
-
-    setSaving(true)
+    if (!role) return;
+    
+    setSaving(true);
     try {
-      // In a real app, you would get the current user ID from the session
-      const currentUserId = "current-user-id"
+      const result = await updateRole(
+        role.id,
+        role.name,
+        role.description || "",
+        "current-user-id", // TODO: Replace with actual user ID from auth context
+        Array.from(selectedPermissions)
+      );
 
-      const response = await updateRole(
-        roleId,
-        formData.name,
-        formData.description,
-        currentUserId,
-        Array.from(selectedPermissions),
-      )
-
-      if (response.success) {
-        router.push(`/access-control/view/${roleId}`)
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Role updated successfully",
+        });
+        router.push("/access-control");
       } else {
-        alert(response.error || "Failed to update role")
+        toast({
+          title: "Error",
+          description: result.error || "Failed to update role",
+          variant: "destructive",
+        });
       }
     } catch (error) {
-      console.error("Error updating role:", error)
-      alert("An error occurred while updating the role")
+      console.error("Error saving role:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -174,6 +192,18 @@ export default function EditRolePage({ params }: { params: { id: string } }) {
       </div>
     )
   }
+
+  const permissionCategories = permissions.reduce((acc, permission) => {
+    const category = permission.permission_categories
+    if (!acc[category.name]) {
+      acc[category.name] = {
+        description: category.description || "",
+        permissions: []
+      }
+    }
+    acc[category.name].permissions.push(permission)
+    return acc
+  }, {} as Record<string, { description: string; permissions: Permission[] }>)
 
   return (
     <div className="flex flex-col gap-6">
@@ -224,27 +254,26 @@ export default function EditRolePage({ params }: { params: { id: string } }) {
             <CardDescription>Assign permissions to this role</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue={sortedCategories[0]?.name || "none"} className="w-full">
+            <Tabs defaultValue={Object.keys(permissionCategories)[0] || "none"} className="w-full">
               <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
-                {sortedCategories.map((category) => (
-                  <TabsTrigger key={category.name} value={category.name}>
-                    {category.name}
+                {Object.keys(permissionCategories).map((categoryName) => (
+                  <TabsTrigger key={categoryName} value={categoryName}>
+                    {categoryName}
                   </TabsTrigger>
                 ))}
-                {sortedCategories.length === 0 && <TabsTrigger value="none">No Categories</TabsTrigger>}
+                {Object.keys(permissionCategories).length === 0 && <TabsTrigger value="none">No Categories</TabsTrigger>}
               </TabsList>
 
-              {sortedCategories.map((category) => (
-                <TabsContent key={category.name} value={category.name} className="space-y-4 pt-4">
+              {Object.entries(permissionCategories).map(([categoryName, category]) => (
+                <TabsContent key={categoryName} value={categoryName} className="space-y-4 pt-4">
                   <div className="flex items-center space-x-2">
                     <Checkbox
-                      id={`select-all-${category.name}`}
+                      id={`select-all-${categoryName}`}
                       checked={isCategoryFullySelected(category.permissions)}
-                      indeterminate={isCategoryPartiallySelected(category.permissions)}
                       onCheckedChange={(checked) => handleSelectAllInCategory(category.permissions, checked === true)}
                     />
-                    <Label htmlFor={`select-all-${category.name}`} className="font-medium">
-                      Select All {category.name} Permissions
+                    <Label htmlFor={`select-all-${categoryName}`} className="font-medium">
+                      Select All {categoryName} Permissions
                     </Label>
                   </div>
 
@@ -270,7 +299,7 @@ export default function EditRolePage({ params }: { params: { id: string } }) {
                 </TabsContent>
               ))}
 
-              {sortedCategories.length === 0 && (
+              {Object.keys(permissionCategories).length === 0 && (
                 <TabsContent value="none" className="pt-4">
                   <div className="border rounded-md p-4 text-center">
                     <p className="text-muted-foreground">No permission categories found.</p>

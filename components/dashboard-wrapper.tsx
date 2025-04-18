@@ -8,7 +8,7 @@ export function DashboardWrapper({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-background to-background/95">
       <DashboardHeader setSidebarOpen={setSidebarOpen} />
       <div className="flex flex-1">
         <DashboardSidebar open={sidebarOpen} setOpen={setSidebarOpen} />

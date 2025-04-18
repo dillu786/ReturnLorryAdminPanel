@@ -2,30 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
-
-const DUMMY_ROLES = {
-  Admin: [
-    "dashboard:view",
-    "rides:view",
-    "users:view",
-    "drivers:view",
-    "owners:view",
-    "settings:access_control",
-    "documents:view",
-    "settings:view"
-  ],
-  Manager: [
-    "dashboard:view",
-    "rides:view",
-    "users:view",
-    "drivers:view",
-    "owners:view",
-  ],
-  Support: [
-    "dashboard:view",
-    "rides:view",
-  ],
-}
+import { getUserPermissionsAction } from "@/app/actions/permission-actions"
 
 export function usePermissions() {
   const { data: session, status } = useSession()
@@ -33,11 +10,25 @@ export function usePermissions() {
   const loading = status === "loading"
 
   useEffect(() => {
-    if (!loading && session?.user?.role) {
-      console.log("session"+session.user.role)
-      const userRole = session.user.role as keyof typeof DUMMY_ROLES
-      setPermissions(DUMMY_ROLES[userRole] || [])
+    const fetchPermissions = async () => {
+      if (!loading && session?.user?.id) {
+        try {
+          const result = await getUserPermissionsAction(session.user.id)
+          if (result.success && result.permissions) {
+            console.log("result.permissions", result.permissions);
+            setPermissions(result.permissions)
+          } else {
+            console.error("Error fetching permissions:", result.error)
+            setPermissions([])
+          }
+        } catch (error) {
+          console.error("Error fetching permissions:", error)
+          setPermissions([])
+        }
+      }
     }
+
+    fetchPermissions()
   }, [session, loading])
 
   const hasPermission = (permissionCode: string) => {

@@ -13,8 +13,62 @@ import Link from "next/link"
 import { getRole } from "@/app/actions/role-actions"
 import { formatDistanceToNow } from "date-fns"
 
+// Define types for the data structure
+interface PermissionCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  displayOrder: number;
+}
+
+interface Permission {
+  id: string;
+  name: string;
+  description: string | null;
+  code: string;
+  categoryId: string;
+  permission_categories: PermissionCategory;
+}
+
+interface RolePermission {
+  id: string;
+  roleId: string;
+  permissionId: string;
+  permissions: Permission;
+}
+
+interface Admin {
+  id: string;
+  email: string;
+  fullName: string;
+  isActive: boolean;
+}
+
+interface UserRole {
+  id: string;
+  assignedAt: string;
+  adminId: string;
+  roleId: string;
+  assignedById: string | null;
+  admin_user_roles_adminIdToadmin: Admin;
+}
+
+interface Role {
+  id: string;
+  name: string;
+  description: string | null;
+  isSystemRole: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdById: string | null;
+  role_permissions: RolePermission[];
+  user_roles: UserRole[];
+  admin?: Admin;
+}
+
 export default async function ViewRolePage({ params }: { params: { id: string } }) {
-  const role = await getRole(params.id)
+  const role = await getRole(params.id) as Role | null
 
   if (!role) {
     return (
@@ -34,22 +88,22 @@ export default async function ViewRolePage({ params }: { params: { id: string } 
   }
 
   // Group permissions by category
-  const permissionsByCategory = role.permissions.reduce(
-    (acc, { permission }) => {
-      const categoryName = permission.category.name
+  const permissionsByCategory = role.role_permissions.reduce(
+    (acc, rolePermission) => {
+      const categoryName = rolePermission.permissions.permission_categories.name
       if (!acc[categoryName]) {
         acc[categoryName] = []
       }
-      acc[categoryName].push(permission)
+      acc[categoryName].push(rolePermission)
       return acc
     },
-    {} as Record<string, any[]>,
+    {} as Record<string, RolePermission[]>,
   )
 
   // Sort categories by display order
   const sortedCategories = Object.entries(permissionsByCategory).sort(([a], [b]) => {
-    const categoryA = role.permissions.find((p) => p.permission.category.name === a)?.permission.category
-    const categoryB = role.permissions.find((p) => p.permission.category.name === b)?.permission.category
+    const categoryA = role.role_permissions.find((p) => p.permissions.permission_categories.name === a)?.permissions.permission_categories
+    const categoryB = role.role_permissions.find((p) => p.permissions.permission_categories.name === b)?.permissions.permission_categories
     return (categoryA?.displayOrder || 0) - (categoryB?.displayOrder || 0)
   })
 
@@ -92,7 +146,7 @@ export default async function ViewRolePage({ params }: { params: { id: string } 
               <h3 className="text-sm font-medium text-muted-foreground">Users with this role</h3>
               <div className="mt-1 flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
-                <span>{role.users.length} users</span>
+                <span>{role.user_roles.length} users</span>
               </div>
             </div>
             <div>
@@ -101,13 +155,13 @@ export default async function ViewRolePage({ params }: { params: { id: string } 
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 <span>{formatDistanceToNow(new Date(role.createdAt), { addSuffix: true })}</span>
               </div>
-              {role.createdBy && <p className="mt-1 text-sm text-muted-foreground">by {role.createdBy.fullName}</p>}
+              {role.createdById && <p className="mt-1 text-sm text-muted-foreground">by {role.admin?.fullName || "Unknown"}</p>}
             </div>
             <div>
               <h3 className="text-sm font-medium text-muted-foreground">Permissions</h3>
               <div className="mt-1 flex items-center gap-2">
                 <Shield className="h-4 w-4 text-muted-foreground" />
-                <span>{role.permissions.length} permissions</span>
+                <span>{role.role_permissions.length} permissions</span>
               </div>
             </div>
           </CardContent>
@@ -150,8 +204,8 @@ export default async function ViewRolePage({ params }: { params: { id: string } 
                             </svg>
                           </div>
                           <div className="grid gap-1.5">
-                            <p className="font-medium">{permission.name}</p>
-                            <p className="text-sm text-muted-foreground">{permission.description}</p>
+                            <p className="font-medium">{permission.permissions.name}</p>
+                            <p className="text-sm text-muted-foreground">{permission.permissions.description}</p>
                           </div>
                         </div>
                       ))}
@@ -172,7 +226,7 @@ export default async function ViewRolePage({ params }: { params: { id: string } 
         </Card>
       </div>
 
-      {role.users.length > 0 && (
+      {role.user_roles.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Users with this Role</CardTitle>
@@ -185,24 +239,22 @@ export default async function ViewRolePage({ params }: { params: { id: string } 
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead className="hidden md:table-cell">Username</TableHead>
                     <TableHead className="hidden md:table-cell">Status</TableHead>
                     <TableHead className="hidden md:table-cell">Assigned</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {role.users.map(({ user, assignedAt }) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.fullName}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell className="hidden md:table-cell">{user.username}</TableCell>
+                  {role.user_roles.map((userRole) => (
+                    <TableRow key={userRole.id}>
+                      <TableCell className="font-medium">{userRole.admin_user_roles_adminIdToadmin.fullName}</TableCell>
+                      <TableCell>{userRole.admin_user_roles_adminIdToadmin.email}</TableCell>
                       <TableCell className="hidden md:table-cell">
-                        <Badge variant={user.isActive ? "success" : "secondary"}>
-                          {user.isActive ? "Active" : "Inactive"}
+                        <Badge variant={userRole.admin_user_roles_adminIdToadmin.isActive ? "default" : "secondary"}>
+                          {userRole.admin_user_roles_adminIdToadmin.isActive ? "Active" : "Inactive"}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        {formatDistanceToNow(new Date(assignedAt), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(userRole.assignedAt), { addSuffix: true })}
                       </TableCell>
                     </TableRow>
                   ))}

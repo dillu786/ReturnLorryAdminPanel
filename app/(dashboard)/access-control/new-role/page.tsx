@@ -12,51 +12,68 @@ import { Label } from "@/components/ui/label"
 import { ArrowLeft, Save, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { getAllPermissions, createNewRole } from "@/app/actions/role-actions"
+import { toast } from "@/components/ui/use-toast"
+import { useSession } from "next-auth/react"
 
-export default function NewRolePage() {
+interface PermissionCategory {
+  id: string
+  name: string
+  description: string | null
+  icon: string | null
+  displayOrder: number
+}
+
+interface Permission {
+  id: string
+  name: string
+  code: string
+  description: string | null
+  categoryId: string
+  permission_categories: PermissionCategory
+}
+
+export default  function NewRolePage() {
   const router = useRouter()
-
+  const session =  useSession();
+  const currentUserId = session?.data?.user?.id;
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [allPermissions, setAllPermissions] = useState<any[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set())
   const [formData, setFormData] = useState({
     name: "",
     description: "",
   })
 
-  // Group permissions by category
-  const permissionsByCategory = allPermissions.reduce(
-    (acc, permission) => {
-      const categoryName = permission.category.name
-      if (!acc[categoryName]) {
-        acc[categoryName] = {
-          ...permission.category,
-          permissions: [],
-        }
-      }
-      acc[categoryName].permissions.push(permission)
-      return acc
-    },
-    {} as Record<string, any>,
-  )
-
-  // Sort categories by display order
-  const sortedCategories = Object.values(permissionsByCategory).sort((a, b) => a.displayOrder - b.displayOrder)
-
   useEffect(() => {
-    async function fetchPermissions() {
+    const fetchData = async () => {
       try {
-        const permissions = await getAllPermissions()
-        setAllPermissions(permissions)
+        const permissionsData = await getAllPermissions()
+        // Transform the permissions data to match our interface
+        const typedPermissions = permissionsData.flatMap(category => 
+          category.permissions.map(permission => ({
+            id: permission.id,
+            name: permission.name,
+            code: permission.code,
+            description: permission.description,
+            categoryId: permission.categoryId,
+            permission_categories: category
+          }))
+        )
+        setPermissions(typedPermissions)
       } catch (error) {
         console.error("Error fetching permissions:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load permissions",
+          variant: "destructive",
+        })
       } finally {
         setLoading(false)
       }
     }
 
-    fetchPermissions()
+    fetchData()
   }, [])
 
   const handlePermissionChange = (permissionId: string, checked: boolean) => {
@@ -71,10 +88,9 @@ export default function NewRolePage() {
     })
   }
 
-  const handleSelectAllInCategory = (categoryPermissions: any[], checked: boolean) => {
+  const handleSelectAllInCategory = (categoryPermissions: Permission[], checked: boolean) => {
     setSelectedPermissions((prev) => {
       const newSet = new Set(prev)
-
       categoryPermissions.forEach((permission) => {
         if (checked) {
           newSet.add(permission.id)
@@ -82,46 +98,59 @@ export default function NewRolePage() {
           newSet.delete(permission.id)
         }
       })
-
       return newSet
     })
   }
 
-  const isCategoryFullySelected = (categoryPermissions: any[]) => {
+  const isCategoryFullySelected = (categoryPermissions: Permission[]) => {
     return categoryPermissions.every((permission) => selectedPermissions.has(permission.id))
   }
 
-  const isCategoryPartiallySelected = (categoryPermissions: any[]) => {
+  const isCategoryPartiallySelected = (categoryPermissions: Permission[]) => {
     const hasSelected = categoryPermissions.some((permission) => selectedPermissions.has(permission.id))
     return hasSelected && !isCategoryFullySelected(categoryPermissions)
   }
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      alert("Role name is required")
+      toast({
+        title: "Error",
+        description: "Role name is required",
+        variant: "destructive",
+      })
       return
     }
 
     setSaving(true)
     try {
-      // In a real app, you would get the current user ID from the session
-      const currentUserId = "current-user-id"
-
-      const response = await createNewRole(
+      
+      const result = await createNewRole(
         formData.name,
         formData.description,
-        currentUserId,
-        Array.from(selectedPermissions),
+        currentUserId as string,
+        Array.from(selectedPermissions)
       )
 
-      if (response.success) {
-        router.push(`/access-control/view/${response.roleId}`)
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Role created successfully",
+        })
+        router.push(`/access-control/view/${result.roleId}`)
       } else {
-        alert(response.error || "Failed to create role")
+        toast({
+          title: "Error",
+          description: result.error || "Failed to create role",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error creating role:", error)
-      alert("An error occurred while creating the role")
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
     } finally {
       setSaving(false)
     }
@@ -135,6 +164,18 @@ export default function NewRolePage() {
       </div>
     )
   }
+
+  const permissionCategories = permissions.reduce((acc, permission) => {
+    const category = permission.permission_categories
+    if (!acc[category.name]) {
+      acc[category.name] = {
+        description: category.description || "",
+        permissions: []
+      }
+    }
+    acc[category.name].permissions.push(permission)
+    return acc
+  }, {} as Record<string, { description: string; permissions: Permission[] }>)
 
   return (
     <div className="flex flex-col gap-6">
@@ -183,33 +224,32 @@ export default function NewRolePage() {
             <CardDescription>Assign permissions to this role</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue={sortedCategories[0]?.name || "none"} className="w-full">
+            <Tabs defaultValue={Object.keys(permissionCategories)[0] || "none"} className="w-full">
               <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
-                {sortedCategories.map((category) => (
-                  <TabsTrigger key={category.name} value={category.name}>
-                    {category.name}
+                {Object.keys(permissionCategories).map((categoryName) => (
+                  <TabsTrigger key={categoryName} value={categoryName}>
+                    {categoryName}
                   </TabsTrigger>
                 ))}
-                {sortedCategories.length === 0 && <TabsTrigger value="none">No Categories</TabsTrigger>}
+                {Object.keys(permissionCategories).length === 0 && <TabsTrigger value="none">No Categories</TabsTrigger>}
               </TabsList>
 
-              {sortedCategories.map((category) => (
-                <TabsContent key={category.name} value={category.name} className="space-y-4 pt-4">
+              {Object.entries(permissionCategories).map(([categoryName, category]) => (
+                <TabsContent key={categoryName} value={categoryName} className="space-y-4 pt-4">
                   <div className="flex items-center space-x-2">
                     <Checkbox
-                      id={`select-all-${category.name}`}
+                      id={`select-all-${categoryName}`}
                       checked={isCategoryFullySelected(category.permissions)}
-                      indeterminate={isCategoryPartiallySelected(category.permissions)}
                       onCheckedChange={(checked) => handleSelectAllInCategory(category.permissions, checked === true)}
                     />
-                    <Label htmlFor={`select-all-${category.name}`} className="font-medium">
-                      Select All {category.name} Permissions
+                    <Label htmlFor={`select-all-${categoryName}`} className="font-medium">
+                      Select All {categoryName} Permissions
                     </Label>
                   </div>
 
                   <div className="border rounded-md p-4">
                     <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-                      {category.permissions.map((permission: any) => (
+                      {category.permissions.map((permission) => (
                         <div key={permission.id} className="flex items-start space-x-2">
                           <Checkbox
                             id={permission.id}
@@ -229,7 +269,7 @@ export default function NewRolePage() {
                 </TabsContent>
               ))}
 
-              {sortedCategories.length === 0 && (
+              {Object.keys(permissionCategories).length === 0 && (
                 <TabsContent value="none" className="pt-4">
                   <div className="border rounded-md p-4 text-center">
                     <p className="text-muted-foreground">No permission categories found.</p>
