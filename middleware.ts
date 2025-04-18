@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
+import { NextURL } from "next/dist/server/web/next-url"
 
 // Define permission requirements for different paths
 const permissionRequirements: Record<string, string> = {
@@ -33,7 +34,9 @@ export async function middleware(request: NextRequest) {
   if (requiredPermission) {
     try {
       // Fetch permissions from the API
-      const response = await fetch(`${request.nextUrl.origin}/api/auth/permissions`, {
+      console.log("nexturl"+process.env.NEXTAUTH_URL);
+      console.log("nextauth"+request.nextUrl.origin);
+      const response = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/permissions`, {
         headers: {
           Cookie: request.headers.get("cookie") || "",
         },
