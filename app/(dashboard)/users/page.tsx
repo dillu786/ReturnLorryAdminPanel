@@ -3,20 +3,25 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, Plus, Search, MoreHorizontal, Filter, Eye, Edit, Trash2 } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Download, Plus, Search, Filter, Eye, Edit, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { RoleBasedSection } from "@/components/role-based-section"
 import { RoleBasedAction } from "@/components/role-based-action"
+import { usePermissions } from "@/hooks/use-permissions"
+import { useMemo, useCallback } from "react"
 
 export default function UsersPage() {
+  const { hasPermission } = usePermissions();
+  
+  // Memoize permission checks
+  const permissions = useMemo(() => ({
+    view: hasPermission("users:view"),
+    edit: hasPermission("users:edit"),
+    delete: hasPermission("users:delete"),
+    export: hasPermission("users:export"),
+    create: hasPermission("users:create"),
+  }), [hasPermission]);
+
   // Mock data for users
   const users = [
     {
@@ -66,19 +71,80 @@ export default function UsersPage() {
     },
   ]
 
+  // Memoize action handlers
+  const handleView = useCallback((userId: string) => {
+    // Handle view action
+    console.log("View user:", userId);
+  }, []);
+
+  const handleEdit = useCallback((userId: string) => {
+    // Handle edit action
+    console.log("Edit user:", userId);
+  }, []);
+
+  const handleDelete = useCallback((userId: string) => {
+    // Handle delete action
+    console.log("Delete user:", userId);
+  }, []);
+
+  // Memoize the table rows to prevent unnecessary re-renders
+  const tableRows = useMemo(() => (
+    users.map((user) => (
+      <TableRow key={user.id}>
+        <TableCell className="font-medium">{user.name}</TableCell>
+        <TableCell className="hidden md:table-cell">{user.email}</TableCell>
+        <TableCell className="hidden md:table-cell">
+          <Badge
+            variant={
+              user.status === "active"
+                ? "default"
+                : user.status === "inactive"
+                ? "secondary"
+                : "destructive"
+            }
+          >
+            {user.status}
+          </Badge>
+        </TableCell>
+        <TableCell className="hidden md:table-cell">{user.rides}</TableCell>
+        <TableCell className="hidden md:table-cell">{user.joined}</TableCell>
+        <TableCell className="text-right">
+          {permissions.view && (
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="icon" onClick={() => handleView(user.id)}>
+                <Eye className="h-4 w-4" />
+                <span className="sr-only">View</span>
+              </Button>
+              {permissions.edit && (
+                <Button variant="ghost" size="icon" onClick={() => handleEdit(user.id)}>
+                  <Edit className="h-4 w-4" />
+                  <span className="sr-only">Edit</span>
+                </Button>
+              )}
+              {permissions.delete && (
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id)}>
+                  <Trash2 className="h-4 w-4" />
+                  <span className="sr-only">Delete</span>
+                </Button>
+              )}
+            </div>
+          )}
+        </TableCell>
+      </TableRow>
+    ))
+  ), [users, permissions, handleView, handleEdit, handleDelete]);
+
   return (
-    <RoleBasedSection 
-      requiredPermission="users:view"
-      title="Users"
-      description="Manage user accounts and permissions"
-    >
+    
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <h2 className="text-3xl font-bold tracking-tight">Users</h2>
-          <RoleBasedAction requiredPermission="users:create">
-            <Plus className="mr-2 h-4 w-4" />
-            Add User
-          </RoleBasedAction>
+          {permissions.create && (
+            <Button variant="outline" size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Add User
+            </Button>
+          )}
         </div>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -92,18 +158,19 @@ export default function UsersPage() {
                 <span className="sr-only">Filter</span>
               </Button>
             </div>
-            <RoleBasedAction requiredPermission="users:export" variant="outline" size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </RoleBasedAction>
+            {permissions.export && (
+              <Button variant="outline" size="sm">
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+            )}
           </div>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="hidden md:table-cell">Phone</TableHead>
+                  <TableHead className="hidden md:table-cell">Email</TableHead>
                   <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead className="hidden md:table-cell">Rides</TableHead>
                   <TableHead className="hidden md:table-cell">Joined</TableHead>
@@ -111,49 +178,14 @@ export default function UsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell className="hidden md:table-cell">{user.phone}</TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Badge
-                        variant={
-                          user.status === "active"
-                            ? "default"
-                            : user.status === "inactive"
-                            ? "secondary"
-                            : "destructive"
-                        }
-                      >
-                        {user.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">{user.rides}</TableCell>
-                    <TableCell className="hidden md:table-cell">{user.joined}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <RoleBasedAction requiredPermission="users:view" variant="ghost" size="icon">
-                          <Eye className="h-4 w-4" />
-                          <span className="sr-only">View</span>
-                        </RoleBasedAction>
-                        <RoleBasedAction requiredPermission="users:edit" variant="ghost" size="icon">
-                          <Edit className="h-4 w-4" />
-                          <span className="sr-only">Edit</span>
-                        </RoleBasedAction>
-                        <RoleBasedAction requiredPermission="users:delete" variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete</span>
-                        </RoleBasedAction>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {tableRows}
               </TableBody>
             </Table>
           </div>
         </div>
       </div>
-    </RoleBasedSection>
+   
   )
 }
+
+

@@ -6,10 +6,19 @@ import {
   type ThemeProviderProps,
 } from 'next-themes'
 
-export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
+const ThemeProvider = React.memo(function ThemeProvider({ 
+  children, 
+  ...props 
+}: ThemeProviderProps) {
   return (
     <div suppressHydrationWarning>
-      <NextThemesProvider {...props}>{children}</NextThemesProvider>
+      <NextThemesProvider {...props}>
+        {children}
+      </NextThemesProvider>
     </div>
   )
-}
+})
+
+ThemeProvider.displayName = 'ThemeProvider'
+
+export { ThemeProvider }

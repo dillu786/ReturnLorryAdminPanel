@@ -3,177 +3,187 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, Plus, Search, MoreHorizontal, Filter, MapPin, Eye, Edit, Trash2, Phone } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Download, Plus, Search, Filter, Eye, Edit, Trash2, Car } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { RoleBasedSection } from "@/components/role-based-section"
-import { RoleBasedAction } from "@/components/role-based-action"
+import { usePermissions } from "@/hooks/use-permissions"
+import { useMemo, useCallback } from "react"
 
 export default function RidesPage() {
+  const { hasPermission } = usePermissions();
+  
+  // Memoize permission checks
+  const permissions = useMemo(() => ({
+    view: hasPermission("rides:view"),
+    edit: hasPermission("rides:edit"),
+    delete: hasPermission("rides:delete"),
+    create: hasPermission("rides:create"),
+    export: hasPermission("rides:export"),
+  }), [hasPermission]);
+
   // Mock data for rides
   const rides = [
     {
-      id: "R-1234",
-      customer: "John Doe",
-      driver: "Alex Johnson",
-      pickup: "123 Main St, New York",
-      dropoff: "456 Park Ave, New York",
-      date: "Today, 10:30 AM",
-      status: "completed",
-      amount: "$24.50",
-    },
-    {
-      id: "R-1235",
-      customer: "Jane Smith",
-      driver: "Sarah Williams",
-      pickup: "789 Broadway, New York",
-      dropoff: "101 5th Ave, New York",
-      date: "Today, 11:15 AM",
-      status: "in-progress",
-      amount: "$18.75",
-    },
-    {
-      id: "R-1236",
-      customer: "Robert Johnson",
+      id: "1",
+      customer: "John Smith",
       driver: "Michael Brown",
-      pickup: "222 West St, New York",
-      dropoff: "333 East St, New York",
-      date: "Today, 12:00 PM",
-      status: "scheduled",
-      amount: "$32.00",
+      vehicle: "Toyota Camry",
+      status: "completed",
+      date: "2024-02-15",
+      amount: "$25.00",
     },
     {
-      id: "R-1237",
-      customer: "Emily Davis",
-      driver: "Jessica Davis",
-      pickup: "444 North Ave, New York",
-      dropoff: "555 South Blvd, New York",
-      date: "Today, 1:30 PM",
+      id: "2",
+      customer: "Sarah Johnson",
+      driver: "Emily Davis",
+      vehicle: "Honda Civic",
+      status: "in-progress",
+      date: "2024-02-15",
+      amount: "$18.50",
+    },
+    {
+      id: "3",
+      customer: "Robert Wilson",
+      driver: "David Lee",
+      vehicle: "Ford Focus",
       status: "cancelled",
+      date: "2024-02-14",
       amount: "$0.00",
     },
     {
-      id: "R-1238",
-      customer: "Michael Wilson",
-      driver: "David Wilson",
-      pickup: "666 Lexington Ave, New York",
-      dropoff: "777 Madison Ave, New York",
-      date: "Today, 2:45 PM",
+      id: "4",
+      customer: "Emily Davis",
+      driver: "John Smith",
+      vehicle: "Hyundai Elantra",
+      status: "completed",
+      date: "2024-02-14",
+      amount: "$32.75",
+    },
+    {
+      id: "5",
+      customer: "Michael Brown",
+      driver: "Sarah Johnson",
+      vehicle: "Nissan Altima",
       status: "scheduled",
-      amount: "$27.25",
+      date: "2024-02-16",
+      amount: "$0.00",
     },
   ]
 
+  // Memoize action handlers
+  const handleView = useCallback((rideId: string) => {
+    // Handle view action
+    console.log("View ride:", rideId);
+  }, []);
+
+  const handleEdit = useCallback((rideId: string) => {
+    // Handle edit action
+    console.log("Edit ride:", rideId);
+  }, []);
+
+  const handleDelete = useCallback((rideId: string) => {
+    // Handle delete action
+    console.log("Delete ride:", rideId);
+  }, []);
+
+  // Memoize the table rows to prevent unnecessary re-renders
+  const tableRows = useMemo(() => (
+    rides.map((ride) => (
+      <TableRow key={ride.id}>
+        <TableCell className="font-medium">{ride.customer}</TableCell>
+        <TableCell className="hidden md:table-cell">{ride.driver}</TableCell>
+        <TableCell className="hidden md:table-cell">{ride.vehicle}</TableCell>
+        <TableCell className="hidden md:table-cell">
+          <Badge
+            variant={
+              ride.status === "completed"
+                ? "default"
+                : ride.status === "in-progress"
+                ? "secondary"
+                : ride.status === "scheduled"
+                ? "outline"
+                : "destructive"
+            }
+          >
+            {ride.status}
+          </Badge>
+        </TableCell>
+        <TableCell className="hidden md:table-cell">{ride.date}</TableCell>
+        <TableCell className="hidden md:table-cell">{ride.amount}</TableCell>
+        <TableCell className="text-right">
+          {permissions.view && (
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="icon" onClick={() => handleView(ride.id)}>
+                <Eye className="h-4 w-4" />
+                <span className="sr-only">View</span>
+              </Button>
+              {permissions.edit && (
+                <Button variant="ghost" size="icon" onClick={() => handleEdit(ride.id)}>
+                  <Edit className="h-4 w-4" />
+                  <span className="sr-only">Edit</span>
+                </Button>
+              )}
+              {permissions.delete && (
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(ride.id)}>
+                  <Trash2 className="h-4 w-4" />
+                  <span className="sr-only">Delete</span>
+                </Button>
+              )}
+            </div>
+          )}
+        </TableCell>
+      </TableRow>
+    ))
+  ), [rides, permissions, handleView, handleEdit, handleDelete]);
+
   return (
-    <RoleBasedSection 
-      requiredPermission="rides:view"
-      title="Rides"
-      description="Manage and track all rides in the system"
-    >
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-3xl font-bold tracking-tight">Rides</h2>
-          <RoleBasedAction requiredPermission="rides:create">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold tracking-tight">Rides</h2>
+        {permissions.create && (
+          <Button variant="outline" size="sm">
             <Plus className="mr-2 h-4 w-4" />
             Add Ride
-          </RoleBasedAction>
-        </div>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex w-full items-center gap-2 sm:max-w-sm">
-              <div className="relative w-full">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input type="search" placeholder="Search rides..." className="w-full pl-8" />
-              </div>
-              <Button variant="outline" size="icon">
-                <Filter className="h-4 w-4" />
-                <span className="sr-only">Filter</span>
-              </Button>
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex w-full items-center gap-2 sm:max-w-sm">
+            <div className="relative w-full">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input type="search" placeholder="Search rides..." className="w-full pl-8" />
             </div>
-            <RoleBasedAction requiredPermission="rides:export" variant="outline" size="sm">
+            <Button variant="outline" size="icon">
+              <Filter className="h-4 w-4" />
+              <span className="sr-only">Filter</span>
+            </Button>
+          </div>
+          {permissions.export && (
+            <Button variant="outline" size="sm">
               <Download className="mr-2 h-4 w-4" />
               Export
-            </RoleBasedAction>
-          </div>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead className="hidden md:table-cell">Driver</TableHead>
-                  <TableHead className="hidden md:table-cell">Pickup/Dropoff</TableHead>
-                  <TableHead className="hidden md:table-cell">Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hidden md:table-cell">Amount</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rides.map((ride) => (
-                  <TableRow key={ride.id}>
-                    <TableCell className="font-medium">{ride.id}</TableCell>
-                    <TableCell>{ride.customer}</TableCell>
-                    <TableCell className="hidden md:table-cell">{ride.driver}</TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center text-xs">
-                          <MapPin className="mr-1 h-3 w-3 text-green-500" />
-                          {ride.pickup}
-                        </div>
-                        <div className="flex items-center text-xs">
-                          <MapPin className="mr-1 h-3 w-3 text-red-500" />
-                          {ride.dropoff}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">{ride.date}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          ride.status === "completed"
-                            ? "default"
-                            : ride.status === "in-progress"
-                              ? "secondary"
-                              : ride.status === "scheduled"
-                                ? "outline"
-                                : "destructive"
-                        }
-                      >
-                        {ride.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">{ride.amount}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <RoleBasedAction requiredPermission="rides:view" variant="ghost" size="icon">
-                          <Eye className="h-4 w-4" />
-                          <span className="sr-only">View</span>
-                        </RoleBasedAction>
-                        <RoleBasedAction requiredPermission="rides:edit" variant="ghost" size="icon">
-                          <Edit className="h-4 w-4" />
-                          <span className="sr-only">Edit</span>
-                        </RoleBasedAction>
-                        <RoleBasedAction requiredPermission="rides:cancel" variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Cancel</span>
-                        </RoleBasedAction>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+            </Button>
+          )}
+        </div>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Customer</TableHead>
+                <TableHead className="hidden md:table-cell">Driver</TableHead>
+                <TableHead className="hidden md:table-cell">Vehicle</TableHead>
+                <TableHead className="hidden md:table-cell">Status</TableHead>
+                <TableHead className="hidden md:table-cell">Date</TableHead>
+                <TableHead className="hidden md:table-cell">Amount</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tableRows}
+            </TableBody>
+          </Table>
         </div>
       </div>
-    </RoleBasedSection>
+    </div>
   )
 }

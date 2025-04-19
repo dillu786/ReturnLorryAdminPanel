@@ -86,6 +86,13 @@
   }
 }
 
+/* Performance Optimizations */
+* {
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 /* Modern Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
@@ -106,24 +113,28 @@
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
-/* Smooth Transitions */
+/* Optimized Transitions */
 * {
   @apply transition-colors duration-200;
+  will-change: transform, opacity;
 }
 
 /* Card Hover Effects */
 .card-hover {
   @apply transition-all duration-200 hover:shadow-lg hover:scale-[1.02];
+  transform: translateZ(0);
 }
 
 /* Modern Button Styles */
 .btn-modern {
   @apply transition-all duration-200 hover:scale-105 active:scale-95;
+  transform: translateZ(0);
 }
 
 /* Glass Effect */
 .glass {
   @apply bg-white/10 backdrop-blur-md border border-white/20;
+  transform: translateZ(0);
 }
 
 .dark .glass {
