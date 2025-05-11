@@ -4,13 +4,31 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useQuery } from "@tanstack/react-query"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, Plus, Search, Filter, Eye, Edit, Trash2 } from "lucide-react"
+import { Download, Plus, Search, Filter, Eye, Edit, Trash2, ChevronLeft, ChevronRight, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { usePermissions } from "@/hooks/use-permissions"
-import { useMemo, useCallback } from "react"
+import { useMemo, useCallback, useState } from "react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 
 export default function RidesPage() {
   const { hasPermission } = usePermissions();
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const pageSize = 10;
   
   // Memoize permission checks
   const permissions = useMemo(() => ({
@@ -23,12 +41,18 @@ export default function RidesPage() {
 
   const fetchRides = async () => {
     try {
-      const response = await fetch('/api/rides');
+      const params = new URLSearchParams({
+        page: page.toString(),
+        pageSize: pageSize.toString(),
+        ...(search && { search }),
+        ...(status && { status })
+      });
+
+      const response = await fetch(`/api/rides?${params}`);
       if (!response.ok) {
         throw new Error(`API responded with status: ${response.status}`);
       }
       const data = await response.json();
-      console.log("Fetched rides:", data);
       return data;
     } catch (error) {
       console.error("Error fetching rides:", error);
@@ -36,10 +60,13 @@ export default function RidesPage() {
     }
   }
 
-  const { data: rides = [], isLoading, error } = useQuery({
-    queryKey: ["rides"],
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["rides", page, search, status],
     queryFn: fetchRides,
   });
+
+  const rides = data?.rides || [];
+  const pagination = data?.pagination || { total: 0, page: 1, pageSize, totalPages: 0 };
 
   // Determine status badge variant
   const getStatusVariant = (status) => {
@@ -65,29 +92,42 @@ export default function RidesPage() {
   // Format currency
   const formatCurrency = (amount) => {
     if (amount === null || amount === undefined) return "$0.00";
-    return `${parseFloat(amount).toFixed(2)}`;
+    return `$${parseFloat(amount).toFixed(2)}`;
   };
 
   // Memoize action handlers
   const handleView = useCallback((rideId) => {
-    // Handle view action
     console.log("View ride:", rideId);
   }, []);
 
   const handleEdit = useCallback((rideId) => {
-    // Handle edit action
     console.log("Edit ride:", rideId);
   }, []);
 
   const handleDelete = useCallback((rideId) => {
-    // Handle delete action
     console.log("Delete ride:", rideId);
+  }, []);
+
+  const handleSearch = useCallback((value: string) => {
+    setSearch(value);
+    setPage(1); // Reset to first page on new search
+  }, []);
+
+  const handleStatusChange = useCallback((value: string) => {
+    setStatus(value);
+    setPage(1); // Reset to first page on new filter
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setSearch("");
+    setStatus("");
+    setPage(1);
   }, []);
 
   // Memoize the table rows to prevent unnecessary re-renders
   const tableRows = useMemo(() => (
-    rides.map((ride, index) => (
-      <TableRow key={index}>
+    rides.map((ride) => (
+      <TableRow key={ride.Id}>
         <TableCell className="font-medium">{ride.User?.Name || "Unknown"}</TableCell>
         <TableCell className="hidden md:table-cell">{ride.Driver?.Name || "Unknown"}</TableCell>
         <TableCell className="hidden md:table-cell">{ride.Vehicle?.Model || "Unknown"}</TableCell>
@@ -102,18 +142,18 @@ export default function RidesPage() {
         <TableCell className="text-right">
           {permissions.view && (
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="icon" onClick={() => handleView(index)}>
+              <Button variant="ghost" size="icon" onClick={() => handleView(ride.Id)}>
                 <Eye className="h-4 w-4" />
                 <span className="sr-only">View</span>
               </Button>
               {permissions.edit && (
-                <Button variant="ghost" size="icon" onClick={() => handleEdit(index)}>
+                <Button variant="ghost" size="icon" onClick={() => handleEdit(ride.Id)}>
                   <Edit className="h-4 w-4" />
                   <span className="sr-only">Edit</span>
                 </Button>
               )}
               {permissions.delete && (
-                <Button variant="ghost" size="icon" onClick={() => handleDelete(index)}>
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(ride.Id)}>
                   <Trash2 className="h-4 w-4" />
                   <span className="sr-only">Delete</span>
                 </Button>
@@ -141,12 +181,57 @@ export default function RidesPage() {
           <div className="flex w-full items-center gap-2 sm:max-w-sm">
             <div className="relative w-full">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="search" placeholder="Search rides..." className="w-full pl-8" />
+              <Input 
+                type="search" 
+                placeholder="Search rides..." 
+                className="w-full pl-8"
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
             </div>
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-              <span className="sr-only">Filter</span>
-            </Button>
+            <Popover open={showFilters} onOpenChange={setShowFilters}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <Filter className="h-4 w-4" />
+                  <span className="sr-only">Filter</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <div className="grid gap-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium leading-none">Filters</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Filter rides by status
+                    </p>
+                  </div>
+                  <div className="grid gap-2">
+                    <Select value={status} onValueChange={handleStatusChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">All Status</SelectItem>
+                        <SelectItem value="COMPLETED">Completed</SelectItem>
+                        <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                        <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                        <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {(search || status) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start"
+                      onClick={clearFilters}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Clear filters
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           {permissions.export && (
             <Button variant="outline" size="sm">
@@ -177,7 +262,7 @@ export default function RidesPage() {
               <TableBody>
                 {rides.length > 0 ? tableRows : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-4">
+                    <TableCell colSpan={8} className="text-center py-4">
                       No rides found
                     </TableCell>
                   </TableRow>
@@ -186,6 +271,33 @@ export default function RidesPage() {
             </Table>
           </div>
         )}
+        
+        {/* Pagination Controls */}
+        <div className="flex items-center justify-between px-2">
+          <div className="flex-1 text-sm text-muted-foreground">
+            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, pagination.total)} of {pagination.total} rides
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+              disabled={page === pagination.totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )
