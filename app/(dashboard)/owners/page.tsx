@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { useQuery } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Download, Plus, Search, Filter, Eye, Edit, Trash2, Car } from "lucide-react"
@@ -20,8 +21,22 @@ export default function OwnersPage() {
     export: hasPermission("owners:export"),
   }), [hasPermission]);
 
+  const fetchOwners = async ()=>{
+   
+    const data = await fetch('/api/owners');
+    const json =await data.json();
+    console.log(json);
+    return json;
+  }
+  const { data: owners = [], isLoading, error } = useQuery({
+    queryKey: ["owners"],
+    queryFn: fetchOwners
+  });
+
+  console.log(owners);
+  
   // Mock data for owners
-  const owners = [
+  const owner = [
     {
       id: "1",
       name: "John Smith",
@@ -87,10 +102,10 @@ export default function OwnersPage() {
 
   // Memoize the table rows to prevent unnecessary re-renders
   const tableRows = useMemo(() => (
-    owners.map((owner) => (
-      <TableRow key={owner.id}>
-        <TableCell className="font-medium">{owner.name}</TableCell>
-        <TableCell className="hidden md:table-cell">{owner.email}</TableCell>
+    owners.map((owner:any) => (
+      <TableRow key={owner.Id}>
+        <TableCell className="font-medium">{owner.Name}</TableCell>
+        <TableCell className="hidden md:table-cell">{owner.Email}</TableCell>
         <TableCell className="hidden md:table-cell">
           <Badge
             variant={
@@ -104,8 +119,8 @@ export default function OwnersPage() {
             {owner.status}
           </Badge>
         </TableCell>
-        <TableCell className="hidden md:table-cell">{owner.vehicles}</TableCell>
-        <TableCell className="hidden md:table-cell">{owner.joined}</TableCell>
+        <TableCell className="hidden md:table-cell">{owner.Gender}</TableCell>
+        <TableCell className="hidden md:table-cell">{owner.MobileNumber}</TableCell>
         <TableCell className="text-right">
           {permissions.view && (
             <div className="flex justify-end gap-2">
@@ -169,8 +184,8 @@ export default function OwnersPage() {
                 <TableHead>Name</TableHead>
                 <TableHead className="hidden md:table-cell">Email</TableHead>
                 <TableHead className="hidden md:table-cell">Status</TableHead>
-                <TableHead className="hidden md:table-cell">Vehicles</TableHead>
-                <TableHead className="hidden md:table-cell">Joined</TableHead>
+                <TableHead className="hidden md:table-cell">Gender</TableHead>
+                <TableHead className="hidden md:table-cell">MobileNumber</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>

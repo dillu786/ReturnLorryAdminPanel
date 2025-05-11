@@ -63,6 +63,8 @@ model DriverVehicle {
   VehicleId Int
   Driver    Driver  @relation(fields: [DriverId], references: [Id])
   Vehicle   Vehicle @relation(fields: [VehicleId], references: [Id])
+
+  @@unique([DriverId, VehicleId])
 }
 
 model DriverWallet {
@@ -102,6 +104,7 @@ model Owner {
   PanImage             String?
   LastLoggedIn         DateTime          @default(now())
   CreatedDate          DateTime          @default(now())
+  OwnerImage           String?
   FareNegotiation      FareNegotiation[]
   OwnerDriver          OwnerDriver[]
   OwnerVehicle         OwnerVehicle[]

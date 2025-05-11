@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useQuery } from "@tanstack/react-query"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Download, Plus, Search, Filter, Eye, Edit, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -22,8 +23,20 @@ export default function UsersPage() {
     create: hasPermission("users:create"),
   }), [hasPermission]);
 
+
+  const fetchCustomers = async ()=>{
+   
+    const data = await fetch('/api/customers');
+    const json =await data.json();
+    console.log(json);
+    return json;
+  }
+  const { data: customers = [], isLoading, error } = useQuery({
+    queryKey: ["customers"],
+    queryFn: fetchCustomers
+  });
   // Mock data for users
-  const users = [
+  const customer = [
     {
       id: "1",
       name: "John Doe",
@@ -89,34 +102,34 @@ export default function UsersPage() {
 
   // Memoize the table rows to prevent unnecessary re-renders
   const tableRows = useMemo(() => (
-    users.map((user) => (
-      <TableRow key={user.id}>
-        <TableCell className="font-medium">{user.name}</TableCell>
-        <TableCell className="hidden md:table-cell">{user.email}</TableCell>
+    customers.map((customer:any) => (
+      <TableRow key={customer.Id}>
+        <TableCell className="font-medium">{customer.Name}</TableCell>
+        <TableCell className="hidden md:table-cell">{customer.Email}</TableCell>
         <TableCell className="hidden md:table-cell">
           <Badge
             variant={
-              user.status === "active"
+              customer.status === "active"
                 ? "default"
-                : user.status === "inactive"
+                : customer.status === "inactive"
                 ? "secondary"
                 : "destructive"
             }
           >
-            {user.status}
+            {customer.status}
           </Badge>
         </TableCell>
-        <TableCell className="hidden md:table-cell">{user.rides}</TableCell>
-        <TableCell className="hidden md:table-cell">{user.joined}</TableCell>
+        <TableCell className="hidden md:table-cell">{customer.rides}</TableCell>
+        <TableCell className="hidden md:table-cell">{customer.joined}</TableCell>
         <TableCell className="text-right">
           {permissions.view && (
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="icon" onClick={() => handleView(user.id)}>
+              <Button variant="ghost" size="icon" onClick={() => handleView(customer.id)}>
                 <Eye className="h-4 w-4" />
                 <span className="sr-only">View</span>
               </Button>
               {permissions.edit && (
-                <Button variant="ghost" size="icon" onClick={() => handleEdit(user.id)}>
+                <Button variant="ghost" size="icon" onClick={() => handleEdit(customer.id)}>
                   <Edit className="h-4 w-4" />
                   <span className="sr-only">Edit</span>
                 </Button>
@@ -132,7 +145,7 @@ export default function UsersPage() {
         </TableCell>
       </TableRow>
     ))
-  ), [users, permissions, handleView, handleEdit, handleDelete]);
+  ), [customers, permissions, handleView, handleEdit, handleDelete]);
 
   return (
     

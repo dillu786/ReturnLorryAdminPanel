@@ -7,7 +7,7 @@ import { Download, Plus, Search, Filter, Eye, Edit, Trash2, FileText } from "luc
 import { Badge } from "@/components/ui/badge"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useMemo, useCallback } from "react"
-
+import { useQuery } from "@tanstack/react-query"
 export default function DriversPage() {
   const { hasPermission } = usePermissions();
   
@@ -21,59 +21,20 @@ export default function DriversPage() {
     export: hasPermission("drivers:export"),
   }), [hasPermission]);
 
+  const fetchDrivers = async()=>{
+    console.log(`${process.env.NEXTAUTH_URL}/api/drivers`);
+    const data = await fetch(`/api/drivers`);
+    const json = await data.json();
+    return json;
+  }
+
+  const { data: drivers = [], isLoading, error } = useQuery({
+    queryKey: ["drivers"],
+    queryFn: fetchDrivers,
+  });
   // Mock data for drivers
-  const drivers = [
-    {
-      id: "1",
-      name: "John Smith",
-      email: "john.smith@example.com",
-      phone: "+1 (555) 123-4567",
-      status: "active",
-      vehicle: "Toyota Camry",
-      rating: 4.8,
-      rides: 156,
-    },
-    {
-      id: "2",
-      name: "Sarah Johnson",
-      email: "sarah.j@example.com",
-      phone: "+1 (555) 987-6543",
-      status: "active",
-      vehicle: "Honda Civic",
-      rating: 4.9,
-      rides: 203,
-    },
-    {
-      id: "3",
-      name: "Michael Brown",
-      email: "michael.b@example.com",
-      phone: "+1 (555) 456-7890",
-      status: "inactive",
-      vehicle: "Ford Focus",
-      rating: 4.5,
-      rides: 89,
-    },
-    {
-      id: "4",
-      name: "Emily Davis",
-      email: "emily.d@example.com",
-      phone: "+1 (555) 234-5678",
-      status: "active",
-      vehicle: "Hyundai Elantra",
-      rating: 4.7,
-      rides: 178,
-    },
-    {
-      id: "5",
-      name: "David Wilson",
-      email: "david.w@example.com",
-      phone: "+1 (555) 876-5432",
-      status: "suspended",
-      vehicle: "Nissan Altima",
-      rating: 4.2,
-      rides: 45,
-    },
-  ]
+ 
+  console.log("drivers"+JSON.stringify(drivers));
 
   // Memoize action handlers
   const handleView = useCallback((driverId: string) => {
@@ -100,8 +61,8 @@ export default function DriversPage() {
   const tableRows = useMemo(() => (
     drivers.map((driver) => (
       <TableRow key={driver.id}>
-        <TableCell className="font-medium">{driver.name}</TableCell>
-        <TableCell className="hidden md:table-cell">{driver.email}</TableCell>
+        <TableCell className="font-medium">{driver.Name}</TableCell>
+        <TableCell className="hidden md:table-cell">{driver.Email}</TableCell>
         <TableCell className="hidden md:table-cell">
           <Badge
             variant={
