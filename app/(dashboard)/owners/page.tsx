@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { useQuery } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, Plus, Search, Filter, Eye, Edit, Trash2, Car, ChevronLeft, ChevronRight, X } from "lucide-react"
+import { Download, Plus, Search, Filter, Eye, Edit, Trash2, Car, ChevronLeft, ChevronRight, X, FileText } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useMemo, useCallback, useState } from "react"
@@ -21,6 +21,18 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { useDebounce } from "@/hooks/use-debounce"
+import { OwnerDetailsModal } from "@/components/owner-details-modal"
+import { useRouter } from "next/navigation"
+
+interface Owner {
+  Id: string
+  Name: string
+  Email: string
+  MobileNumber: string
+  status: string
+  drivers: number
+  joined: string
+}
 
 export default function OwnersPage() {
   const { hasPermission } = usePermissions();
@@ -41,6 +53,8 @@ export default function OwnersPage() {
     create: hasPermission("owners:create"),
     export: hasPermission("owners:export"),
   }), [hasPermission]);
+
+  const router = useRouter()
 
   const fetchOwners = async () => {
     try {
@@ -71,10 +85,13 @@ export default function OwnersPage() {
   const owners = data?.owners || [];
   const pagination = data?.pagination || { total: 0, page: 1, pageSize, totalPages: 0 };
 
+  const [selectedOwner, setSelectedOwner] = useState<any>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+
   // Memoize action handlers
   const handleView = useCallback((ownerId: string) => {
-    console.log("View owner:", ownerId);
-  }, []);
+    router.push(`/owners/${ownerId}`)
+  }, [router])
 
   const handleEdit = useCallback((ownerId: string) => {
     console.log("Edit owner:", ownerId);
@@ -100,9 +117,24 @@ export default function OwnersPage() {
     setPage(1);
   }, []);
 
+  const fetchOwnerDetails = async (ownerId: string) => {
+    try {
+      const response = await fetch(`/api/owners/${ownerId}`);
+      if (!response.ok) {
+        throw new Error(`API responded with status: ${response.status}`);
+      }
+      const data = await response.json();
+      setSelectedOwner(data);
+      setIsDetailsModalOpen(true);
+    } catch (error) {
+      console.error("Error fetching owner details:", error);
+      // You might want to show a toast notification here
+    }
+  };
+
   // Memoize the table rows to prevent unnecessary re-renders
   const tableRows = useMemo(() => (
-    owners.map((owner) => (
+    owners.map((owner: Owner) => (
       <TableRow key={owner.Id}>
         <TableCell className="font-medium">{owner.Name}</TableCell>
         <TableCell className="hidden md:table-cell">{owner.Email}</TableCell>
@@ -128,6 +160,14 @@ export default function OwnersPage() {
               <Button variant="ghost" size="icon" onClick={() => handleView(owner.Id)}>
                 <Eye className="h-4 w-4" />
                 <span className="sr-only">View</span>
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => fetchOwnerDetails(owner.Id)}>
+                <FileText className="h-4 w-4" />
+                <span className="sr-only">Documents</span>
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => fetchOwnerDetails(owner.Id)}>
+                <Car className="h-4 w-4" />
+                <span className="sr-only">Vehicles</span>
               </Button>
               {permissions.edit && (
                 <Button variant="ghost" size="icon" onClick={() => handleEdit(owner.Id)}>
@@ -280,6 +320,15 @@ export default function OwnersPage() {
           </div>
         </div>
       </div>
+      
+      <OwnerDetailsModal
+        isOpen={isDetailsModalOpen}
+        onClose={() => {
+          setIsDetailsModalOpen(false);
+          setSelectedOwner(null);
+        }}
+        owner={selectedOwner}
+      />
     </div>
   )
 }

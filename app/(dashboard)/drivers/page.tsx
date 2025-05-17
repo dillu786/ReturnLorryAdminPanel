@@ -136,7 +136,6 @@ export default function DriversPage() {
   console.log("driverData"+driverData);
 
   const handleViewDocuments = useCallback((driver: any) => {
-    alert('driver selected'+driver);
     setSelectedDriver(driver);
     setIsDocumentsOpen(true);
   }, []);
@@ -147,25 +146,24 @@ export default function DriversPage() {
     }
   }, []);
 
-  const handleDownload = useCallback(async (imageUrl: string, fileName: string) => {
-    if (imageUrl) {
-      try {
-        console.log("downloading"+imageUrl);
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } catch (error) {
-        console.error('Error downloading document:', error);
-      }
+  const handleDownload = async (fileKey: string, fileName: string) => {
+    try {
+      const response = await fetch(`/api/download?key=${encodeURIComponent(fileKey)}&name=${encodeURIComponent(fileName)}`)
+      if (!response.ok) throw new Error('Download failed')
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error('Download error:', error)
     }
-  }, []);
+  }
 
   const handleVerify = useCallback(async (driverId: string) => {
     try {
@@ -295,7 +293,7 @@ export default function DriversPage() {
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>
-              {selectedDriver?.Name}'s Documents
+              {driverData?.Name}'s Documents
             </DialogTitle>
           </DialogHeader>
 
