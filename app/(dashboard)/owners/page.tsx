@@ -161,7 +161,7 @@ export default function OwnersPage() {
                 <Eye className="h-4 w-4" />
                 <span className="sr-only">View</span>
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => fetchOwnerDetails(owner.Id)}>
+              {/* <Button variant="ghost" size="icon" onClick={() => fetchOwnerDetails(owner.Id)}>
                 <FileText className="h-4 w-4" />
                 <span className="sr-only">Documents</span>
               </Button>
@@ -174,7 +174,7 @@ export default function OwnersPage() {
                   <Edit className="h-4 w-4" />
                   <span className="sr-only">Edit</span>
                 </Button>
-              )}
+              )} */}
               {permissions.delete && (
                 <Button variant="ghost" size="icon" onClick={() => handleDelete(owner.Id)}>
                   <Trash2 className="h-4 w-4" />

@@ -90,7 +90,7 @@ export default function DriversPage() {
                 <Eye className="h-4 w-4" />
                 <span className="sr-only">View</span>
               </Button>
-              {permissions.edit && (
+              {/* {permissions.edit && (
                 <Button variant="ghost" size="icon" onClick={() => handleEdit(driver.Id)}>
                   <Edit className="h-4 w-4" />
                   <span className="sr-only">Edit</span>
@@ -101,7 +101,7 @@ export default function DriversPage() {
                   <FileText className="h-4 w-4" />
                   <span className="sr-only">Documents</span>
                 </Button>
-              )}
+              )} */}
               {permissions.suspend && (
                 <Button variant="ghost" size="icon" onClick={() => handleSuspend(driver.Id)}>
                   <Trash2 className="h-4 w-4" />

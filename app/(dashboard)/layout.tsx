@@ -3,7 +3,7 @@
 import { useState, useCallback, memo } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { LayoutDashboard, Users, Car, UserCog, ShieldCheck, FileText, Settings, X } from "lucide-react"
+import { LayoutDashboard, Users, Car, UserCog, ShieldCheck, FileText, Settings, X, UserCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -21,7 +21,7 @@ const routes = [
     permission: "dashboard:view",
   },
   {
-    label: "Rides",
+    label: "Trips",
     icon: Car,
     href: "/rides",
     permission: "rides:view",
@@ -34,7 +34,7 @@ const routes = [
   },
   {
     label: "Drivers",
-    icon: Car,
+    icon: UserCheck,
     href: "/drivers",
     permission: "drivers:view",
   },
@@ -50,12 +50,7 @@ const routes = [
     href: "/access-control",
     permission: "access_control:view",
   },
-  {
-    label: "Documents",
-    icon: FileText,
-    href: "/documents",
-    permission: "documents:view",
-  },
+
   {
     label: "Settings",
     icon: Settings,
