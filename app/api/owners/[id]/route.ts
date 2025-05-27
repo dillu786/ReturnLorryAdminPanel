@@ -14,7 +14,8 @@ interface VehicleDocument{
   Id: number
   Model: string
   Year: string
-  Category: string
+  Category?: string
+  VehicleType?: string
   VehicleNumber: string
   VehicleImage: string | null
   VehicleInsuranceImage: string | null
@@ -72,7 +73,8 @@ export async function GET(
                 Id: true,
                 Model: true,
                 Year: true,
-                Category: true,
+                //Category: true,
+                VehicleType:true,
                 VehicleNumber: true,
                 VehicleImage: true,
                 VehicleInsuranceImage: true,
@@ -102,7 +104,8 @@ export async function GET(
           PermitImage: (await getObjectSignedUrl(vehicle.Vehicle.PermitImage as string)) ?? null,
           VehicleInsuranceImage: (await getObjectSignedUrl(vehicle.Vehicle.VehicleInsuranceImage as string)) ?? null,
           Year: vehicle.Vehicle.Year,
-          Category: vehicle.Vehicle.Category
+          VehicleType: vehicle.Vehicle.VehicleType || "",
+
         };
       })
     );
