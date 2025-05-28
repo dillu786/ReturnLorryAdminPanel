@@ -57,6 +57,7 @@ model Driver {
   IsOnline                 Boolean           @default(false)
   Latitude                 Float?
   Longitude                Float?
+  IsActive                 Boolean           @default(true)
   Bookings                 Bookings[]
   DriverVehicle            DriverVehicle[]
   DriverWallet             DriverWallet?
@@ -112,6 +113,7 @@ model Owner {
   PanImage             String?
   LastLoggedIn         DateTime          @default(now())
   CreatedDate          DateTime          @default(now())
+  IsActive             Boolean           @default(true)
   FareNegotiation      FareNegotiation[]
   OwnerDriver          OwnerDriver[]
   OwnerVehicle         OwnerVehicle[]
@@ -154,6 +156,7 @@ model User {
   Gender       Gender
   Latitude     Float?
   Longitude    Float?
+  IsActive     Boolean     @default(true)
   Bookings     Bookings[]
   UserWallet   UserWallet?
 }

@@ -23,13 +23,14 @@ import {
 import { useDebounce } from "@/hooks/use-debounce"
 import { OwnerDetailsModal } from "@/components/owner-details-modal"
 import { useRouter } from "next/navigation"
+import { tree } from "next/dist/build/templates/app-page"
 
 interface Owner {
   Id: string
   Name: string
   Email: string
   MobileNumber: string
-  status: string
+  IsActive: boolean
   drivers: number
   joined: string
 }
@@ -142,14 +143,13 @@ export default function OwnersPage() {
         <TableCell className="hidden md:table-cell">
           <Badge
             variant={
-              owner.status === "active"
+              owner.IsActive === true
                 ? "default"
-                : owner.status === "inactive"
-                ? "secondary"
-                : "destructive"
+                : "secondary"
+              
             }
           >
-            {owner.status}
+            {owner.IsActive=== true ? "Active":"InActive"}
           </Badge>
         </TableCell>
         <TableCell className="hidden md:table-cell">{owner.drivers}</TableCell>

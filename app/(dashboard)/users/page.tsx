@@ -105,11 +105,10 @@ export default function UsersPage() {
         <TableCell className="hidden md:table-cell">
           <Badge
             variant={
-              user.status === "active"
+              user.IsActive === true
                 ? "default"
-                : user.status === "inactive"
-                ? "secondary"
-                : "destructive"
+                : "secondary"
+                
             }
           >
             {user.status}
