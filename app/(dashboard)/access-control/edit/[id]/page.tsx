@@ -66,18 +66,32 @@ export default function EditRolePage({ params }: { params: { id: string } }) {
         ])
 
         if (roleData) {
-          setRole(roleData)
-          setSelectedPermissions(new Set(roleData.role_permissions.map(rp => rp.permissions.id)))
+          setRole({
+            ...roleData,
+            role_permissions: (roleData.permissions || []).map((p: any) => ({ permissions: p.permission || p })),
+          })  
+          // roleData.permissions is an array of { id, roleId, permissionId }
+          setSelectedPermissions(new Set(roleData.permissions.map((p: any) => p.permissionId || p.id)))
         }
         // Transform the permissions data to match our interface
-        const typedPermissions = permissionsData.flatMap(category => 
-          category.permissions.map(permission => ({
-            id: permission.id,
-            name: permission.name,
-            code: permission.code,
-            description: permission.description,
-            categoryId: permission.categoryId,
-            permission_categories: category
+        // permissionsData: each category has a permissions array of { id, roleId, permissionId }
+        // We'll use id as name for now
+        console.log("permissionsData");
+        console.log(permissionsData);
+        const typedPermissions = permissionsData.flatMap((category: any) =>
+          category.permissions.map((permission: any) => ({
+            id: permission.permissionId || permission.id,
+            name: permission.permissionId || permission.id, // fallback to id as name
+            code: permission.permissionId || permission.id, // fallback
+            description: '',
+            categoryId: category.id,
+            permission_categories: {
+              id: category.id,
+              name: category.name,
+              description: category.description || '',
+              icon: category.icon || null,
+              displayOrder: category.displayOrder || 0,
+            },
           }))
         )
         setPermissions(typedPermissions)

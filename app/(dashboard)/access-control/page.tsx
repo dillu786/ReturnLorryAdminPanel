@@ -18,7 +18,7 @@ interface Role {
 }
 
 export default async function AccessControlPage() {
-  const roles = await getRoles() as Role[]
+  const roles = await getRoles();
 
   return (
     <div className="flex flex-col gap-6">
@@ -62,7 +62,7 @@ export default async function AccessControlPage() {
                   <TableCell className="font-medium">{role.name}</TableCell>
                   <TableCell className="hidden md:table-cell">{role.description}</TableCell>
                   <TableCell className="hidden md:table-cell">0</TableCell>
-                  <TableCell className="hidden md:table-cell">{role._count.role_permissions}</TableCell>
+                  <TableCell className="hidden md:table-cell">{role._count.permissions}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     {role.isSystemRole ? (
                       <Badge variant="secondary">System</Badge>

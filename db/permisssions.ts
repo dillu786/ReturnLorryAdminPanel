@@ -7,13 +7,13 @@ export async function hasPermission(adminId: string, permissionCode: string): Pr
   const admin = await prisma.admin.findUnique({
     where: { id: adminId },
     include: {
-      user_roles_user_roles_adminIdToadmin: {
+      roles: { // <-- likely correct, check your schema
         include: {
-          roles: {
+          role: {
             include: {
-              role_permissions: {
+              permissions: {
                 include: {
-                  permissions: true,
+                  permission: true,
                 },
               },
             },
@@ -25,10 +25,10 @@ export async function hasPermission(adminId: string, permissionCode: string): Pr
 
   if (!admin) return false
 
-  for (const userRole of admin.user_roles_user_roles_adminIdToadmin) {
-    for (const rolePermission of userRole.roles.role_permissions) {
-      if (rolePermission.permissions.code === permissionCode) {
-        return true
+  for (const userRole of admin.roles) {
+    for (const rolePermission of userRole.role.permissions) {
+      if (rolePermission.permission.code === permissionCode) {
+        return true;
       }
     }
   }
@@ -41,31 +41,29 @@ export async function hasPermission(adminId: string, permissionCode: string): Pr
  */
 export async function getUserPermissions(adminId: string) {
   console.log("adminId",adminId);
-  const rolesWithPermissions = await prisma.user_roles.findMany({
+  const rolesWithPermissions = await prisma.userRole.findMany({
     where: {
       adminId,
     },
     include: {
-      roles: {
-        include: {
-          role_permissions: {
+      role: { 
             include: {
               permissions: {
                 include: {
-                  permission_categories: true,
+                  permission: true,
                 },
               },
             },
-          },
+          
         },
       },
-    },
-  })
+    })
+  
 
   const permissions: any[] = []
   for (const userRole of rolesWithPermissions) {
-    for (const rp of userRole.roles.role_permissions) {
-      permissions.push(rp.permissions)
+    for (const rp of userRole.role.permissions) {
+      permissions.push(rp.permission)
     }
   }
 
@@ -87,6 +85,7 @@ export async function getUserPermissions(adminId: string) {
  * Get all permission codes for an admin
  */
 export async function getUserPermissionCodes(adminId: string): Promise<string[]> {
+  console.log("adminId",adminId);
   const permissions = await getUserPermissions(adminId)
   return permissions.map((p) => p.code)
 }
@@ -96,7 +95,7 @@ export async function getUserPermissionCodes(adminId: string): Promise<string[]>
  */
 export async function assignRoleToUser(adminId: string, roleId: string, assignedByUserId: string): Promise<boolean> {
   try {
-    const existing = await prisma.user_roles.findUnique({
+    const existing = await prisma.userRole.findUnique({
       where: {
         adminId_roleId: {
           adminId,
@@ -106,7 +105,7 @@ export async function assignRoleToUser(adminId: string, roleId: string, assigned
     })
 
     if (!existing) {
-      await prisma.user_roles.create({
+      await prisma.userRole.create({
         data: {
           id: crypto.randomUUID(),
           adminId,
@@ -115,7 +114,7 @@ export async function assignRoleToUser(adminId: string, roleId: string, assigned
         },
       })
 
-      await prisma.permission_audit_logs.create({
+      await prisma.permissionAuditLog.create({
         data: {
           id: crypto.randomUUID(),
           actionType: "GRANT",
@@ -138,7 +137,7 @@ export async function assignRoleToUser(adminId: string, roleId: string, assigned
  */
 export async function removeRoleFromUser(adminId: string, roleId: string, removedByUserId: string): Promise<boolean> {
   try {
-    await prisma.user_roles.delete({
+    await prisma.userRole.delete({
       where: {
         adminId_roleId: {
           adminId,
@@ -147,7 +146,7 @@ export async function removeRoleFromUser(adminId: string, roleId: string, remove
       },
     })
 
-    await prisma.permission_audit_logs.create({
+    await prisma.permissionAuditLog.create({
       data: {
         id: crypto.randomUUID(),
         actionType: "REVOKE",
@@ -175,7 +174,7 @@ export async function createRole(
   permissionIds: string[] = [],
 ): Promise<string | null> {
   try {
-    const role = await prisma.roles.create({
+    const role = await prisma.role.create({
       data: {
         id: crypto.randomUUID(),
         name,
@@ -189,7 +188,7 @@ export async function createRole(
     if (permissionIds.length > 0) {
       await Promise.all(
         permissionIds.map((permissionId) =>
-          prisma.role_permissions.create({
+          prisma.rolePermission.create({
             data: {
               id: crypto.randomUUID(),
               roleId: role.id,
@@ -200,7 +199,7 @@ export async function createRole(
       )
     }
 
-    await prisma.permission_audit_logs.create({
+    await prisma.permissionAuditLog.create({
       data: {
         id: crypto.randomUUID(),
         actionType: "ROLE_CREATE",
@@ -226,19 +225,19 @@ export async function updateRolePermissions(
   updatedByUserId: string,
 ): Promise<boolean> {
   try {
-    const current = await prisma.role_permissions.findMany({
+    const current = await prisma.rolePermission.findMany({
       where: { roleId },
       select: { permissionId: true },
     })
 
-    const currentIds = current.map((p) => p.permissionId)
+    const currentIds = current.map((p: { permissionId: string }) => p.permissionId);
 
-    const toAdd = permissionIds.filter((id) => !currentIds.includes(id))
-    const toRemove = currentIds.filter((id) => !permissionIds.includes(id))
+    const toAdd = permissionIds.filter((id: string) => !currentIds.includes(id))
+    const toRemove = currentIds.filter((id: string) => !permissionIds.includes(id))
 
     await Promise.all(
       toAdd.map((permissionId) =>
-        prisma.role_permissions.create({
+        prisma.rolePermission.create({
           data: {
             id: crypto.randomUUID(),
             roleId,
@@ -250,7 +249,7 @@ export async function updateRolePermissions(
 
     await Promise.all(
       toRemove.map((permissionId) =>
-        prisma.role_permissions.delete({
+        prisma.rolePermission.delete({
           where: {
             roleId_permissionId: {
               roleId,
@@ -261,7 +260,7 @@ export async function updateRolePermissions(
       ),
     )
 
-    await prisma.permission_audit_logs.create({
+    await prisma.permissionAuditLog.create({
       data: {
         id: crypto.randomUUID(),
         actionType: "ROLE_UPDATE",

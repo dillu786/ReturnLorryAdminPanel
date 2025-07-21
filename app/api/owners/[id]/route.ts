@@ -14,8 +14,7 @@ interface VehicleDocument{
   Id: number
   Model: string
   Year: string
-  Category?: string
-  VehicleType?: string
+  Category: string
   VehicleNumber: string
   VehicleImage: string | null
   VehicleInsuranceImage: string | null
@@ -66,15 +65,14 @@ export async function GET(
             }
           }
         },
-        OwnerVehicle: {
+        OwnerVehicles: {
           include: {
             Vehicle: {
               select: {
                 Id: true,
                 Model: true,
                 Year: true,
-                //Category: true,
-                VehicleType:true,
+                Category: true,
                 VehicleNumber: true,
                 VehicleImage: true,
                 VehicleInsuranceImage: true,
@@ -89,7 +87,7 @@ export async function GET(
    if (owner!=null){
    // let vehicleDoc: VehicleDocument[]=[]
     const vehicleDoc = await Promise.all(
-      owner.OwnerVehicle.map(async (vehicle) => {
+      owner.OwnerVehicles.map(async (vehicle) => {
         const [vehicleImage, permitImage, insuranceImage] = await Promise.all([
           getObjectSignedUrl(vehicle.Vehicle.VehicleImage as string)?? null,
           getObjectSignedUrl(vehicle.Vehicle.PermitImage as string)?? null,
@@ -104,8 +102,7 @@ export async function GET(
           PermitImage: (await getObjectSignedUrl(vehicle.Vehicle.PermitImage as string)) ?? null,
           VehicleInsuranceImage: (await getObjectSignedUrl(vehicle.Vehicle.VehicleInsuranceImage as string)) ?? null,
           Year: vehicle.Vehicle.Year,
-          VehicleType: vehicle.Vehicle.VehicleType || "",
-
+          Category: vehicle.Vehicle.Category
         };
       })
     );
@@ -141,7 +138,7 @@ export async function GET(
        BackSideAdhaarImage: await getObjectSignedUrl(owner.BackSideAdhaarImage as string )?? null,
        PanImage: await getObjectSignedUrl(owner.PanImage as string)?? null,
        OwnerImage: await getObjectSignedUrl(owner.OwnerImage as string )?? null,
-       Vehicle: vehicleDoc,
+       Vehicle: vehicleDoc as any,
        driver: driverDets
        
      }

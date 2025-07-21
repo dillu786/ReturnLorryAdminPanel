@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         Bookings: true,
-        OwnerDriver: true
+        DriverOwner: true
       },
       skip,
       take: pageSize,

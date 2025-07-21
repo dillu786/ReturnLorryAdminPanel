@@ -5,11 +5,11 @@ import prisma from "@/db/prisma/prisma"
 import { createRole, updateRolePermissions, assignRoleToUser, removeRoleFromUser } from "@/db/permisssions"
 
 export async function getRoles() {
-  return prisma.roles.findMany({
+  return prisma.role.findMany({
     include: {
       _count: {
         select: {
-          role_permissions: true,
+          permissions: true,
         },
       },
     },
@@ -22,21 +22,21 @@ export async function getCustomers() {
 }
 
 export async function getRole(id: string) {
-  return prisma.roles.findUnique({
+  return prisma.role.findUnique({
     where: { id },
     include: {
-      role_permissions: {
+      permissions: {
         include: {
-          permissions: {
+          permission: {
             include: {
-              permission_categories: true,
+              category: true,
             },
           },
         },
       },
-      user_roles: {
+      users: {
         include: {
-          admin_user_roles_adminIdToadmin: true,
+          role: true,
         },
       },
     },
@@ -44,15 +44,16 @@ export async function getRole(id: string) {
 }
 
 export async function getAllPermissions() {
-  return prisma.permission_categories.findMany({
+  // Fetch all permission categories with their permissions, ordered by displayOrder
+  const categories = await prisma.permissionCategory.findMany({
     include: {
-      permissions: true,
+      permissions: {
+        orderBy: { name: 'asc' },
+      },
     },
-    orderBy: [
-      { displayOrder: "asc" },
-      { name: "asc" },
-    ],
-  })
+    orderBy: { displayOrder: 'asc' },
+  });
+  return categories;
 }
 
 export async function createNewRole(
@@ -79,7 +80,7 @@ export async function updateRole(
   permissionIds: string[],
 ) {
   try {
-    await prisma.roles.update({
+    await prisma.role.update({
       where: { id: roleId },
       data: {
         name,
@@ -105,13 +106,13 @@ export async function updateRole(
 
 export async function deleteRole(roleId: string, deletedByUserId: string) {
   try {
-    const role = await prisma.roles.findUnique({ where: { id: roleId } })
+    const role = await prisma.role.findUnique({ where: { id: roleId } })
 
     if (role?.isSystemRole) {
       return { success: false, error: "System roles cannot be deleted" }
     }
 
-    await prisma.permission_audit_logs.create({
+    await prisma.permissionAuditLog.create({
       data: {
         id: crypto.randomUUID(),
         actionType: "ROLE_DELETE",
@@ -121,7 +122,7 @@ export async function deleteRole(roleId: string, deletedByUserId: string) {
       },
     })
 
-    await prisma.roles.delete({
+    await prisma.role.delete({
       where: { id: roleId },
     })
 

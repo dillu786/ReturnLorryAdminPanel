@@ -33,12 +33,16 @@ export const authOptions: NextAuthOptions = {
         try {
           const user = await prisma.admin.findUnique({
             where: { email: credentials.email },
-            include: {
-              user_roles_user_roles_adminIdToadmin: {
-                include: {
-                  roles: true
-                }
-              }
+            include: {      
+                  roles: {
+                    include:{
+                      role:{
+                        select:{
+                          name:true
+                        }
+                      }
+                    }
+                  }           
             }
           });
 
@@ -53,7 +57,7 @@ export const authOptions: NextAuthOptions = {
           }
 
           // Get the user's role from user_roles
-          const userRole = user.user_roles_user_roles_adminIdToadmin[0]?.roles?.name;
+          const userRole = user.roles.find(a=>a.role.name);
           
           if (!userRole) {
             return null;
@@ -69,7 +73,7 @@ export const authOptions: NextAuthOptions = {
             id: user.id,
             email: user.email,
             name: user.fullName,
-            role: userRole as UserRole
+            role: userRole as any
           };
         } catch (error) {
           console.error('Authentication error:', error);
