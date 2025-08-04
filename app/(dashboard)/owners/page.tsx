@@ -8,6 +8,7 @@ import { Download, Plus, Search, Filter, Eye, Edit, Trash2, Car, ChevronLeft, Ch
 import { Badge } from "@/components/ui/badge"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useMemo, useCallback, useState } from "react"
+import { CACHE_KEYS } from "@/lib/cache-utils"
 import {
   Select,
   SelectContent,
@@ -79,7 +80,7 @@ export default function OwnersPage() {
   }
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["owners", page, debouncedSearch, status],
+    queryKey: [CACHE_KEYS.OWNERS, page, debouncedSearch, status],
     queryFn: fetchOwners
   });
 

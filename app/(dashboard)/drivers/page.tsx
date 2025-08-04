@@ -11,6 +11,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Check, X } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
+import { useCacheManager, CACHE_KEYS } from "@/lib/cache-utils"
+import { useCacheInvalidation } from "@/hooks/use-cache-invalidation"
 
 export default function DriversPage() {
   const { hasPermission } = usePermissions();
@@ -18,6 +21,7 @@ export default function DriversPage() {
   const pageSize = 10;
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
+  const [verifyingDocuments, setVerifyingDocuments] = useState<Set<string>>(new Set());
   
   // Memoize permission checks
   const permissions = useMemo(() => ({
@@ -36,7 +40,7 @@ export default function DriversPage() {
   }
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["drivers", page],
+    queryKey: [CACHE_KEYS.DRIVERS, page],
     queryFn: fetchDrivers,
   });
 
@@ -65,7 +69,7 @@ export default function DriversPage() {
 
   // Memoize the table rows to prevent unnecessary re-renders
   const tableRows = useMemo(() => (
-    drivers.map((driver) => (
+    drivers.map((driver: any) => (
       <TableRow key={driver.Id}>
         <TableCell className="font-medium">{driver.Name}</TableCell>
         <TableCell className="hidden md:table-cell">{driver.Email}</TableCell>
@@ -86,7 +90,7 @@ export default function DriversPage() {
         <TableCell className="text-right">
           {permissions.view && (
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="icon" onClick={() => handleViewDocuments(driver.Id)}>
+              <Button variant="ghost" size="icon" onClick={() => handleViewDocuments(driver)}>
                 <Eye className="h-4 w-4" />
                 <span className="sr-only">View</span>
               </Button>
@@ -117,11 +121,13 @@ export default function DriversPage() {
 
   // Fetch driver details when selected
   const queryClient = useQueryClient();
+  const cacheManager = useCacheManager(queryClient);
+  const { invalidateDriverCache, apiCallWithCacheInvalidation } = useCacheInvalidation();
   const { data: driverData, isLoading: isLoadingDriver } = useQuery({
-    queryKey: ["driver", selectedDriver?.Id],
+    queryKey: [CACHE_KEYS.DRIVER, selectedDriver?.Id],
     queryFn: async () => {
       if (!selectedDriver) return null;
-      const response = await fetch(`/api/drivers/${selectedDriver}`);
+      const response = await fetch(`/api/drivers/${selectedDriver.Id}`);
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error("Driver not found");
@@ -165,51 +171,48 @@ export default function DriversPage() {
     }
   }
 
-  const handleVerify = useCallback(async (driverId: string) => {
+  const handleVerify = useCallback(async (driverId: string, documentType: string) => {
+    const operationKey = `${driverId}-${documentType}`;
+    setVerifyingDocuments(prev => new Set(prev).add(operationKey));
+    
     try {
-      const response = await fetch(`/api/drivers/${driverId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
+      await apiCallWithCacheInvalidation(
+        `/api/drivers/${driverId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ documentType }),
         },
-        body: JSON.stringify({ status: 'active' }),
+        () => invalidateDriverCache(driverId),
+        "Document verified successfully!",
+        "Failed to verify document"
+      );
+    } finally {
+      setVerifyingDocuments(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(operationKey);
+        return newSet;
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to verify driver");
-      }
-
-      // Update the UI or show success message
-      // You might want to invalidate the query to refresh the data
-      queryClient.invalidateQueries(["driver", driverId]);
-    } catch (error) {
-      console.error('Error verifying driver:', error);
-      // Show error message to user
     }
-  }, [queryClient]);
+  }, [apiCallWithCacheInvalidation, invalidateDriverCache]);
 
   const handleReject = useCallback(async (driverId: string) => {
-    try {
-      const response = await fetch(`/api/drivers/${driverId}`, {
+    await apiCallWithCacheInvalidation(
+      `/api/drivers/${driverId}`,
+      {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ status: 'rejected' }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to reject driver");
-      }
-
-      // Update the UI or show success message
-      // You might want to invalidate the query to refresh the data
-      queryClient.invalidateQueries(["driver", driverId]);
-    } catch (error) {
-      console.error('Error rejecting driver:', error);
-      // Show error message to user
-    }
-  }, [queryClient]);
+      },
+      () => invalidateDriverCache(driverId),
+      "Driver rejected successfully!",
+      "Failed to reject driver"
+    );
+  }, [apiCallWithCacheInvalidation, invalidateDriverCache]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -290,202 +293,381 @@ export default function DriversPage() {
 
       {/* Documents Dialog */}
       <Dialog open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {driverData?.Name}'s Documents
             </DialogTitle>
           </DialogHeader>
 
-          {isLoadingDriver ? (
-            <div className="space-y-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* License */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">Driver's License</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {driverData?.DriverLicenseFrontImage ? (
-                    <div className="space-y-4">
-                      <img
-                        src={driverData.DriverLicenseFrontImage}
-                        alt="License"
-                        className="w-full h-48 object-cover rounded-lg"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewImage(driverData.DriverLicenseFrontImage)}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(driverData.DriverLicenseFrontImage, `${driverData.Name}-license.jpg`)}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </Button>
+          <div className="flex-1 overflow-y-auto pr-2">
+            {isLoadingDriver ? (
+              <div className="space-y-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* License */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium">Driver's License</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {driverData?.DriverLicenseFrontImage ? (
+                      <div className="space-y-4">
+                        <img
+                          src={driverData.DriverLicenseFrontImage}
+                          alt="License"
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewImage(driverData.DriverLicenseFrontImage)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownload(driverData.DriverLicenseFrontImage, `${driverData.Name}-license.jpg`)}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </Button>
+                          {!driverData.IsDLFrontImageVerified && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleVerify(driverData.Id, 'dl-front')}
+                              disabled={verifyingDocuments.has(`${driverData.Id}-dl-front`)}
+                            >
+                              {verifyingDocuments.has(`${driverData.Id}-dl-front`) ? (
+                                <>
+                                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                  Verifying...
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="h-4 w-4 mr-2" />
+                                  Verify
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
-                      No license uploaded
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Aadhar */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">Driveing License Back Image</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {driverData?.DriverLicenseBackImage ? (
-                    <div className="space-y-4">
-                      <img
-                        src={driverData.AadharImage}
-                        alt="Aadhar"
-                        className="w-full h-48 object-cover rounded-lg"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewImage(driverData.DriverLicenseBackImage)}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(driverData.DriverLicenseBackImage, `${driverData.Name}-back.jpg`)}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </Button>
+                    ) : (
+                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                        No license uploaded
                       </div>
-                    </div>
-                  ) : (
-                    <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
-                      No Aadhar uploaded
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    )}
+                  </CardContent>
+                </Card>
 
-              {/* PAN */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">PAN Card</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {driverData?.PanImage ? (
-                    <div className="space-y-4">
-                      <img
-                        src={driverData.PanImage}
-                        alt="PAN"
-                        className="w-full h-48 object-cover rounded-lg"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewImage(driverData.PanImage)}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(driverData.PanImage, `${driverData.Name}-pan.jpg`)}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </Button>
+                {/* Aadhar */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium">Driveing License Back Image</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {driverData?.DriverLicenseBackImage ? (
+                      <div className="space-y-4">
+                        <img
+                          src={driverData.DriverLicenseBackImage  }
+                          alt="Driving License Back Image"
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewImage(driverData.DriverLicenseBackImage)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownload(driverData.DriverLicenseBackImage, `${driverData.Name}-back.jpg`)}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </Button>
+                          {!driverData.IsDLBackImageVerified && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleVerify(driverData.Id, 'dl-back')}
+                              disabled={verifyingDocuments.has(`${driverData.Id}-dl-back`)}
+                            >
+                              {verifyingDocuments.has(`${driverData.Id}-dl-back`) ? (
+                                <>
+                                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                  Verifying...
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="h-4 w-4 mr-2" />
+                                  Verify
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
-                      No PAN uploaded
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Profile Picture */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">Profile Picture</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {driverData?.ProfileImage ? (
-                    <div className="space-y-4">
-                      <img
-                        src={driverData.DriverImage}
-                        alt="Profile"
-                        className="w-full h-48 object-cover rounded-lg"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewImage(driverData.DriverImage)}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(driverData.DriverImage, `${driverData.Name}-profile.jpg`)}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </Button>
+                    ) : (
+                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                        No Driving License uploaded
                       </div>
-                    </div>
-                  ) : (
-                    <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
-                      No profile picture uploaded
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          )}
+                    )}
+                  </CardContent>
+                </Card>
 
-          {/* Verification Actions */}
-          {driverData?.Status === 'pending' && (
-            <div className="flex justify-end gap-2 mt-6">
-              <Button
-                variant="outline"
-                onClick={() => handleVerify(driverData.Id)}
-              >
-                <Check className="h-4 w-4 mr-2" />
-                Verify
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleReject(driverData.Id)}
-              >
-                <X className="h-4 w-4 mr-2" />
-                Reject
-              </Button>
-            </div>
-          )}
+                {/* PAN */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium">PAN Card</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {driverData?.PanImage ? (
+                      <div className="space-y-4">
+                        <img
+                          src={driverData.PanImage}
+                          alt="PAN"
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewImage(driverData.PanImage)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownload(driverData.PanImage, `${driverData.Name}-pan.jpg`)}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </Button>
+                          {!driverData.IsPanImgVerified && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleVerify(driverData.Id, 'pan')}
+                              disabled={verifyingDocuments.has(`${driverData.Id}-pan`)}
+                            >
+                              {verifyingDocuments.has(`${driverData.Id}-pan`) ? (
+                                <>
+                                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                  Verifying...
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="h-4 w-4 mr-2" />
+                                  Verify
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                        No PAN uploaded
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Profile Picture */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium">Profile Picture</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {driverData?.ProfileImage ? (
+                      <div className="space-y-4">
+                        <img
+                          src={driverData.DriverImage}
+                          alt="Profile"
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewImage(driverData.DriverImage)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownload(driverData.DriverImage, `${driverData.Name}-profile.jpg`)}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                        No profile picture uploaded
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium">Aadhar Front Side</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {driverData?.FrontSideAdhaarImage ? (
+                      <div className="space-y-4">
+                        <img
+                          src={driverData.FrontSideAdhaarImage}
+                          alt="Aadhar Front"
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewImage(driverData.FrontSideAdhaarImage)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownload(driverData.FrontSideAdhaarImage, `${driverData.Name}-aadhar-front.jpg`)}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </Button>
+                          {!driverData.IsFSAdhaarImgVerified && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleVerify(driverData.Id, 'aadhar-front')}
+                              disabled={verifyingDocuments.has(`${driverData.Id}-aadhar-front`)}
+                            >
+                              {verifyingDocuments.has(`${driverData.Id}-aadhar-front`) ? (
+                                <>
+                                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                  Verifying...
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="h-4 w-4 mr-2" />
+                                  Verify
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                        Aadhar Front Side not uploaded
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium">Aadhar Back Side</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {driverData?.BackSideAdhaarImage ? (
+                      <div className="space-y-4">
+                        <img
+                          src={driverData.BackSideAdhaarImage}
+                          alt="Aadhar Back"
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewImage(driverData.BackSideAdhaarImage)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownload(driverData.BackSideAdhaarImage, `${driverData.Name}-aadhar-back.jpg`)}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </Button>
+                          {!driverData.IsBSAdhaarImgVerified && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleVerify(driverData.Id, 'aadhar-back')}
+                              disabled={verifyingDocuments.has(`${driverData.Id}-aadhar-back`)}
+                            >
+                              {verifyingDocuments.has(`${driverData.Id}-aadhar-back`) ? (
+                                <>
+                                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                  Verifying...
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="h-4 w-4 mr-2" />
+                                  Verify
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                        Aadhar Back Side not uploaded
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Verification Actions */}
+            {driverData?.Status === 'pending' && (
+              <div className="flex justify-end gap-2 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => handleVerify(driverData.Id, 'dl-front')}
+                >
+                  <Check className="h-4 w-4 mr-2" />
+                  Verify
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleReject(driverData.Id)}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Reject
+                </Button>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

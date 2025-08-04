@@ -14,7 +14,7 @@ export async function GET(
       
       console.log("id:", params.id);
       
-      // Fetch driver details with all related information
+      // Fetch driver details with all related information including verification fields
       const driver = await prisma.driver.findUnique({
         where: {
           Id: driverId,
@@ -24,14 +24,21 @@ export async function GET(
           Name: true,
           Email: true,
           MobileNumber: true,
-          //Status: true,
           CreatedDate: true,
+          
           // Document fields
           DrivingLicenceFrontImage: true,
           DrivingLicenceBackImage: true,
           PanImage: true,
           DriverImage: true,
-          // Additional fields you might need
+          FrontSideAdhaarImage: true,
+          BackSideAdhaarImage: true,
+          // Verification fields
+          IsDLFrontImageVerified: true,
+          IsDLBackImageVerified: true,
+          IsPanImgVerified: true,
+          IsFSAdhaarImgVerified: true,
+          IsBSAdhaarImgVerified: true,
         },
       });
   
@@ -46,16 +53,18 @@ export async function GET(
         DriverLicenseFrontImage: string,
         DriverLicenseBackImage: string,
         PanImage: string,
-        DriverImage: string
-
+        DriverImage: string,
+        FrontSideAdhaarImage: string,
+        BackSideAdhaarImage: string
       }
   
       const driverDocuments: DriverDocument = {
         DriverLicenseFrontImage: await getObjectSignedUrl(driver.DrivingLicenceFrontImage as string) as string,
         DriverLicenseBackImage: await getObjectSignedUrl(driver.DrivingLicenceBackImage ) as string,
-        PanImage: await getObjectSignedUrl(driver.PanImage) as string,
+        PanImage: await getObjectSignedUrl(driver.PanImage as string) as string,
         DriverImage: await getObjectSignedUrl(driver.DriverImage ) as string,
-        
+        FrontSideAdhaarImage: await getObjectSignedUrl(driver.FrontSideAdhaarImage as string) as string,
+        BackSideAdhaarImage: await getObjectSignedUrl(driver.BackSideAdhaarImage as string) as string,
       }
   
       console.log("test123"+JSON.stringify(driverDocuments));
@@ -74,5 +83,70 @@ export async function GET(
       );
     }
   }
-// Add PATCH method for updating driver status (verification)
+
+export async function PATCH(
+  request: NextRequest,
+  context: { params: { id: string } }
+) {
+  try {
+    const params = await context.params;
+    const driverId = parseInt(params.id, 10);
+    const body = await request.json();
+    const { documentType } = body;
+
+    if (!documentType) {
+      return NextResponse.json(
+        { error: "Document type is required" },
+        { status: 400 }
+      );
+    }
+
+    // Define the verification field mapping
+    const verificationFields = {
+      'dl-front': 'IsDLFrontImageVerified',
+      'dl-back': 'IsDLBackImageVerified', 
+      'pan': 'IsPanImgVerified',
+      'aadhar-front': 'IsFSAdhaarImgVerified',
+      'aadhar-back': 'IsBSAdhaarImgVerified',
+    };
+
+    const verificationField = verificationFields[documentType as keyof typeof verificationFields];
+    
+    if (!verificationField) {
+      return NextResponse.json(
+        { error: "Invalid document type" },
+        { status: 400 }
+      );
+    }
+
+    // Update the verification status
+    const updatedDriver = await prisma.driver.update({
+      where: { Id: driverId },
+      data: {
+        [verificationField]: true,
+      },
+      select: {
+        Id: true,
+        Name: true,
+        IsDLFrontImageVerified: true,
+        IsDLBackImageVerified: true,
+        IsPanImgVerified: true,
+        IsFSAdhaarImgVerified: true,
+        IsBSAdhaarImgVerified: true,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `${documentType} document verified successfully`,
+      driver: updatedDriver,
+    });
+  } catch (error) {
+    console.error('Error verifying document:', error);
+    return NextResponse.json(
+      { error: "Failed to verify document" },
+      { status: 500 }
+    );
+  }
+}
 

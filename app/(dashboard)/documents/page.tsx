@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Search, Download, Eye, Check, X } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CACHE_KEYS } from "@/lib/cache-utils"
 
 // Mock permissions - replace with your actual permission system
 const permissions = {
@@ -26,7 +27,7 @@ export default function DocumentsPage() {
 
   // Fetch drivers with their documents
   const { data: driversData, isLoading: isLoadingDrivers } = useQuery({
-    queryKey: ["drivers", page, search],
+    queryKey: [CACHE_KEYS.DRIVERS, page, search],
     queryFn: async () => {
       const response = await fetch(
         `/api/drivers?page=${page}&pageSize=${pageSize}&search=${search}`
@@ -39,7 +40,7 @@ export default function DocumentsPage() {
 
   // Fetch owners with their documents
   const { data: ownersData, isLoading: isLoadingOwners } = useQuery({
-    queryKey: ["owners", page, search],
+    queryKey: [CACHE_KEYS.OWNERS, page, search],
     queryFn: async () => {
       const response = await fetch(
         `/api/owners?page=${page}&pageSize=${pageSize}&search=${search}`

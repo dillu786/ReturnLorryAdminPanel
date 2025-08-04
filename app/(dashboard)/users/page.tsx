@@ -8,6 +8,7 @@ import { Download, Plus, Search, Filter, Eye, Edit, Trash2, ChevronLeft, Chevron
 import { Badge } from "@/components/ui/badge"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useMemo, useCallback, useState } from "react"
+import { CACHE_KEYS } from "@/lib/cache-utils"
 import {
   Select,
   SelectContent,
@@ -60,7 +61,7 @@ export default function UsersPage() {
   }
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["users", page, search, status],
+    queryKey: [CACHE_KEYS.USERS, page, search, status],
     queryFn: fetchUsers
   });
 

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { useParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CACHE_KEYS } from "@/lib/cache-utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -53,7 +54,7 @@ export default function OwnerDetailsPage() {
   const ownerId = params.id as string
 
   const { data: owner, isLoading, error } = useQuery<Owner>({
-    queryKey: ["owner", ownerId],
+    queryKey: [CACHE_KEYS.OWNER, ownerId],
     queryFn: async () => {
       const response = await fetch(`/api/owners/${ownerId}`)
       if (!response.ok) {

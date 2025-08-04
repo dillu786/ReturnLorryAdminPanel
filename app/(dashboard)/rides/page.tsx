@@ -8,6 +8,7 @@ import { Download, Plus, Search, Filter, Eye, Edit, Trash2, ChevronLeft, Chevron
 import { Badge } from "@/components/ui/badge"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useMemo, useCallback, useState } from "react"
+import { CACHE_KEYS } from "@/lib/cache-utils"
 import {
   Select,
   SelectContent,
@@ -61,7 +62,7 @@ export default function RidesPage() {
   }
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["rides", page, search, status],
+    queryKey: [CACHE_KEYS.RIDES, page, search, status],
     queryFn: fetchRides,
   });
 
