@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Check, X } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useCacheManager, CACHE_KEYS } from "@/lib/cache-utils"
 import { useCacheInvalidation } from "@/hooks/use-cache-invalidation"
 
@@ -22,6 +23,47 @@ export default function DriversPage() {
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
   const [verifyingDocuments, setVerifyingDocuments] = useState<Set<string>>(new Set());
+  
+  // Helper function to check if all documents are verified
+  const isAllDocumentsVerified = useCallback((driver: any) => {
+    // Check if all required documents are verified
+    const requiredDocuments = [
+      driver.IsDLFrontImageVerified,
+      driver.IsDLBackImageVerified,
+      driver.IsPanImgVerified,
+      driver.IsFSAdhaarImgVerified,
+      driver.IsBSAdhaarImgVerified,
+    ];
+    
+    // Return true only if all documents are verified (not null/undefined and true)
+    return requiredDocuments.every(doc => doc === true);
+  }, []);
+
+  // Helper function to get verification count
+  const getVerificationCount = useCallback((driver: any) => {
+    const requiredDocuments = [
+      driver.IsDLFrontImageVerified,
+      driver.IsDLBackImageVerified,
+      driver.IsPanImgVerified,
+      driver.IsFSAdhaarImgVerified,
+      driver.IsBSAdhaarImgVerified,
+    ];
+    
+    return requiredDocuments.filter(doc => doc === true).length;
+  }, []);
+
+  // Helper function to get verification details
+  const getVerificationDetails = useCallback((driver: any) => {
+    const documents = [
+      { name: 'License Front', verified: driver.IsDLFrontImageVerified },
+      { name: 'License Back', verified: driver.IsDLBackImageVerified },
+      { name: 'PAN Card', verified: driver.IsPanImgVerified },
+      { name: 'Aadhar Front', verified: driver.IsFSAdhaarImgVerified },
+      { name: 'Aadhar Back', verified: driver.IsBSAdhaarImgVerified },
+    ];
+    
+    return documents;
+  }, []);
   
   // Memoize permission checks
   const permissions = useMemo(() => ({
@@ -87,6 +129,43 @@ export default function DriversPage() {
         <TableCell className="hidden md:table-cell">{driver.DriverVehicle?.[0]?.Vehicle?.Name || '-'}</TableCell>
         <TableCell className="hidden md:table-cell">{driver.rating || '-'}</TableCell>
         <TableCell className="hidden md:table-cell">{driver.Bookings?.length || 0}</TableCell>
+        <TableCell className="hidden md:table-cell">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex flex-col gap-1 cursor-help">
+                  <Badge
+                    variant={
+                      isAllDocumentsVerified(driver)
+                        ? "default"
+                        : "secondary"
+                    }
+                    className="w-fit"
+                  >
+                    {isAllDocumentsVerified(driver) ? "Verified" : "Pending"}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {getVerificationCount(driver)}/5 documents
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <div className="space-y-1">
+                  <p className="font-medium">Document Verification Status:</p>
+                  {getVerificationDetails(driver).map((doc, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${doc.verified ? 'bg-green-500' : 'bg-gray-400'}`} />
+                      <span className="text-sm">{doc.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {doc.verified ? '✓ Verified' : '⏳ Pending'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </TableCell>
         <TableCell className="text-right">
           {permissions.view && (
             <div className="flex justify-end gap-2">
@@ -117,7 +196,7 @@ export default function DriversPage() {
         </TableCell>
       </TableRow>
     ))
-  ), [drivers, permissions, handleView, handleEdit, handleDocuments, handleSuspend]);
+  ), [drivers, permissions, handleView, handleEdit, handleDocuments, handleSuspend, isAllDocumentsVerified, getVerificationCount, getVerificationDetails]);
 
   // Fetch driver details when selected
   const queryClient = useQueryClient();
@@ -175,6 +254,12 @@ export default function DriversPage() {
     const operationKey = `${driverId}-${documentType}`;
     setVerifyingDocuments(prev => new Set(prev).add(operationKey));
     
+    // Show immediate feedback toaster
+    toast({
+      title: "Verifying...",
+      description: "Please wait while we verify the document.",
+    });
+    
     try {
       await apiCallWithCacheInvalidation(
         `/api/drivers/${driverId}`,
@@ -199,6 +284,12 @@ export default function DriversPage() {
   }, [apiCallWithCacheInvalidation, invalidateDriverCache]);
 
   const handleReject = useCallback(async (driverId: string) => {
+    // Show immediate feedback toaster
+    toast({
+      title: "Rejecting...",
+      description: "Please wait while we process the rejection.",
+    });
+    
     await apiCallWithCacheInvalidation(
       `/api/drivers/${driverId}`,
       {
@@ -254,6 +345,7 @@ export default function DriversPage() {
                 <TableHead className="hidden md:table-cell">Vehicle</TableHead>
                 <TableHead className="hidden md:table-cell">Rating</TableHead>
                 <TableHead className="hidden md:table-cell">Rides</TableHead>
+                <TableHead className="hidden md:table-cell">Verified</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -293,14 +385,14 @@ export default function DriversPage() {
 
       {/* Documents Dialog */}
       <Dialog open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="w-[95vw] max-w-6xl max-h-[90vh] overflow-hidden flex flex-col my-4 mx-auto mt-8">
+          <DialogHeader className="flex-shrink-0 pb-4 border-b mb-2">
+            <DialogTitle className="text-lg font-semibold">
               {driverData?.Name}'s Documents
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto pr-2">
+          <div className="flex-1 overflow-y-auto pr-2 pb-4 pt-6 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             {isLoadingDriver ? (
               <div className="space-y-4">
                 {[...Array(4)].map((_, i) => (
@@ -308,7 +400,7 @@ export default function DriversPage() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 min-h-0">
                 {/* License */}
                 <Card>
                   <CardHeader>
@@ -320,9 +412,9 @@ export default function DriversPage() {
                         <img
                           src={driverData.DriverLicenseFrontImage}
                           alt="License"
-                          className="w-full h-48 object-cover rounded-lg"
+                          className="w-full h-40 md:h-48 object-cover rounded-lg"
                         />
-                        <div className="flex justify-end gap-2">
+                        <div className="flex flex-wrap justify-end gap-2">
                           <Button
                             variant="outline"
                             size="sm"
@@ -362,7 +454,7 @@ export default function DriversPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                      <div className="h-40 md:h-48 bg-muted rounded-lg flex items-center justify-center">
                         No license uploaded
                       </div>
                     )}
@@ -380,7 +472,7 @@ export default function DriversPage() {
                         <img
                           src={driverData.DriverLicenseBackImage  }
                           alt="Driving License Back Image"
-                          className="w-full h-48 object-cover rounded-lg"
+                          className="w-full h-40 md:h-48 object-cover rounded-lg"
                         />
                         <div className="flex justify-end gap-2">
                           <Button
@@ -422,7 +514,7 @@ export default function DriversPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                      <div className="h-40 md:h-48 bg-muted rounded-lg flex items-center justify-center">
                         No Driving License uploaded
                       </div>
                     )}
@@ -440,7 +532,7 @@ export default function DriversPage() {
                         <img
                           src={driverData.PanImage}
                           alt="PAN"
-                          className="w-full h-48 object-cover rounded-lg"
+                          className="w-full h-40 md:h-48 object-cover rounded-lg"
                         />
                         <div className="flex justify-end gap-2">
                           <Button
@@ -482,7 +574,7 @@ export default function DriversPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                      <div className="h-40 md:h-48 bg-muted rounded-lg flex items-center justify-center">
                         No PAN uploaded
                       </div>
                     )}
@@ -500,7 +592,7 @@ export default function DriversPage() {
                         <img
                           src={driverData.DriverImage}
                           alt="Profile"
-                          className="w-full h-48 object-cover rounded-lg"
+                          className="w-full h-40 md:h-48 object-cover rounded-lg"
                         />
                         <div className="flex justify-end gap-2">
                           <Button
@@ -522,7 +614,7 @@ export default function DriversPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                      <div className="h-40 md:h-48 bg-muted rounded-lg flex items-center justify-center">
                         No profile picture uploaded
                       </div>
                     )}
@@ -539,7 +631,7 @@ export default function DriversPage() {
                         <img
                           src={driverData.FrontSideAdhaarImage}
                           alt="Aadhar Front"
-                          className="w-full h-48 object-cover rounded-lg"
+                          className="w-full h-40 md:h-48 object-cover rounded-lg"
                         />
                         <div className="flex justify-end gap-2">
                           <Button
@@ -581,7 +673,7 @@ export default function DriversPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                      <div className="h-40 md:h-48 bg-muted rounded-lg flex items-center justify-center">
                         Aadhar Front Side not uploaded
                       </div>
                     )}
@@ -597,7 +689,7 @@ export default function DriversPage() {
                         <img
                           src={driverData.BackSideAdhaarImage}
                           alt="Aadhar Back"
-                          className="w-full h-48 object-cover rounded-lg"
+                          className="w-full h-40 md:h-48 object-cover rounded-lg"
                         />
                         <div className="flex justify-end gap-2">
                           <Button
@@ -639,7 +731,7 @@ export default function DriversPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                      <div className="h-40 md:h-48 bg-muted rounded-lg flex items-center justify-center">
                         Aadhar Back Side not uploaded
                       </div>
                     )}
