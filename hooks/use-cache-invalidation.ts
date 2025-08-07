@@ -18,7 +18,14 @@ export const useCacheInvalidation = () => {
   };
 
   const invalidateUserCache = (userId?: string) => {
+    console.log('Invalidating user cache for:', userId);
     cacheManager.invalidateUserQueries(userId);
+    // Force refetch of the current users list
+    queryClient.refetchQueries({ 
+      queryKey: [CACHE_KEYS.USERS],
+      exact: false 
+    });
+    console.log('User cache invalidation completed');
   };
 
   const invalidateOwnerCache = (ownerId?: string) => {
@@ -47,14 +54,9 @@ export const useCacheInvalidation = () => {
   ) => {
     try {
       const response = await fetch(url, options);
-      
-      if (!response.ok) {
-        throw new Error(`API responded with status: ${response.status}`);
-      }
-
       const result = await response.json();
       
-      if (result.success) {
+      if (response.ok && result.success) {
         // Invalidate cache
         invalidateFunction();
         
@@ -68,22 +70,27 @@ export const useCacheInvalidation = () => {
         
         return result;
       } else {
-        // Show error message
+        // Show error message from API response
+        const errorMsg = result.message || errorMessage || "Operation failed";
         toast({
           title: "Error",
-          description: result.message || errorMessage || "Operation failed",
+          description: errorMsg,
           variant: "destructive",
         });
         
-        throw new Error(result.message || "Operation failed");
+        throw new Error(errorMsg);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('API call error:', error);
-      toast({
-        title: "Error",
-        description: errorMessage || "Operation failed. Please try again.",
-        variant: "destructive",
-      });
+      
+      // Don't show duplicate error messages if already shown above
+      if (!error.message?.includes('Operation failed')) {
+        toast({
+          title: "Error",
+          description: errorMessage || "Operation failed. Please try again.",
+          variant: "destructive",
+        });
+      }
       throw error;
     }
   };

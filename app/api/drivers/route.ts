@@ -11,25 +11,104 @@ export async function GET(request: NextRequest) {
     
     // Get search and filter parameters
     const search = searchParams.get('search') || '';
-    const status = searchParams.get('status');
+    const accountStatus = searchParams.get('accountStatus');
+    const onlineStatus = searchParams.get('onlineStatus');
+    const verificationStatus = searchParams.get('verificationStatus');
     const sortBy = searchParams.get('sortBy') || 'CreatedDate';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
     // Build where clause for filtering
-    const where = {
-      AND: [
-        // Search in name and email
-        search ? {
-          OR: [
-            { Name: { contains: search, mode: 'insensitive' } },
-            { Email: { contains: search, mode: 'insensitive' } },
-            { MobileNumber: { contains: search, mode: 'insensitive' } }
-          ]
-        } : {},
-        // Filter by status if provided
-        status ? { Status: status } : {}
-      ]
-    };
+    const whereConditions: any[] = [];
+    
+    // Search in name, email, and mobile number
+    if (search) {
+      whereConditions.push({
+        OR: [
+          { Name: { contains: search, mode: 'insensitive' } },
+          { Email: { contains: search, mode: 'insensitive' } },
+          { MobileNumber: { contains: search, mode: 'insensitive' } }
+        ]
+      });
+    }
+    
+    // Filter by account status if provided
+    if (accountStatus) {
+      switch (accountStatus) {
+        case 'active':
+          whereConditions.push({ IsActive: true });
+          break;
+        case 'inactive':
+          whereConditions.push({ IsActive: false });
+          break;
+      }
+    }
+
+    // Filter by online status if provided
+    if (onlineStatus) {
+      switch (onlineStatus) {
+        case 'online':
+          whereConditions.push({ IsOnline: true });
+          break;
+        case 'offline':
+          whereConditions.push({ IsOnline: false });
+          break;
+      }
+    }
+
+    // Filter by verification status if provided
+    if (verificationStatus) {
+      switch (verificationStatus) {
+        case 'verified':
+          whereConditions.push({
+            AND: [
+              { IsDLFrontImageVerified: true },
+              { IsDLBackImageVerified: true },
+              { IsPanImgVerified: true },
+              { IsFSAdhaarImgVerified: true },
+              { IsBSAdhaarImgVerified: true }
+            ]
+          });
+          break;
+        case 'pending':
+          whereConditions.push({
+            OR: [
+              { IsDLFrontImageVerified: false },
+              { IsDLBackImageVerified: false },
+              { IsPanImgVerified: false },
+              { IsFSAdhaarImgVerified: false },
+              { IsBSAdhaarImgVerified: false }
+            ]
+          });
+          break;
+        case 'partially':
+          // Partially verified means at least one document is verified but not all
+          whereConditions.push({
+            AND: [
+              {
+                OR: [
+                  { IsDLFrontImageVerified: true },
+                  { IsDLBackImageVerified: true },
+                  { IsPanImgVerified: true },
+                  { IsFSAdhaarImgVerified: true },
+                  { IsBSAdhaarImgVerified: true }
+                ]
+              },
+              {
+                OR: [
+                  { IsDLFrontImageVerified: false },
+                  { IsDLBackImageVerified: false },
+                  { IsPanImgVerified: false },
+                  { IsFSAdhaarImgVerified: false },
+                  { IsBSAdhaarImgVerified: false }
+                ]
+              }
+            ]
+          });
+          break;
+      }
+    }
+    
+    const where = whereConditions.length > 0 ? { AND: whereConditions } : {};
 
     // Get total count for pagination
     const totalCount = await prisma.driver.count({ where });

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useQuery } from "@tanstack/react-query"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, Plus, Search, Filter, Eye, Edit, Trash2, ChevronLeft, ChevronRight, X } from "lucide-react"
+import { Download, Plus, Search, Filter, Eye, Edit, Trash2, ChevronLeft, ChevronRight, X, MapPin, Clock, DollarSign, User, Truck, CheckCircle, XCircle, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useMemo, useCallback, useState } from "react"
@@ -22,6 +22,33 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import { useCacheInvalidation } from "@/hooks/use-cache-invalidation"
+import { toast } from "@/components/ui/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 
 export default function RidesPage() {
   const { hasPermission } = usePermissions();
@@ -29,6 +56,11 @@ export default function RidesPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedRide, setSelectedRide] = useState<any>(null);
+  const [isRideDetailsOpen, setIsRideDetailsOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const pageSize = 10;
   
   // Memoize permission checks
@@ -69,6 +101,26 @@ export default function RidesPage() {
   const rides = data?.rides || [];
   const pagination = data?.pagination || { total: 0, page: 1, pageSize, totalPages: 0 };
 
+  // Cache invalidation and API helpers
+  const { invalidateRideCache, apiCallWithCacheInvalidation } = useCacheInvalidation();
+
+  // Fetch ride details when selected
+  const { data: rideData, isLoading: isLoadingRide } = useQuery({
+    queryKey: [CACHE_KEYS.RIDE, selectedRide?.Id],
+    queryFn: async () => {
+      if (!selectedRide) return null;
+      const response = await fetch(`/api/rides/${selectedRide.Id}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("Ride not found");
+        }
+        throw new Error("Failed to fetch ride details");
+      }
+      return await response.json();
+    },
+    enabled: !!selectedRide,
+  });
+
   // Determine status badge variant
   const getStatusVariant = (status) => {
     if (!status) return "outline";
@@ -92,22 +144,79 @@ export default function RidesPage() {
   
   // Format currency
   const formatCurrency = (amount) => {
-    if (amount === null || amount === undefined) return "$0.00";
-    return `$${parseFloat(amount).toFixed(2)}`;
+    if (amount === null || amount === undefined) return "₹0.00";
+    return `₹${parseFloat(amount).toFixed(2)}`;
   };
 
   // Memoize action handlers
-  const handleView = useCallback((rideId) => {
-    console.log("View ride:", rideId);
+  const handleView = useCallback((ride: any) => {
+    setSelectedRide(ride);
+    setIsRideDetailsOpen(true);
   }, []);
 
-  const handleEdit = useCallback((rideId) => {
-    console.log("Edit ride:", rideId);
+  const handleEdit = useCallback((ride: any) => {
+    setSelectedRide(ride);
+    setIsEditOpen(true);
   }, []);
 
-  const handleDelete = useCallback((rideId) => {
-    console.log("Delete ride:", rideId);
-  }, []);
+  const handleDelete = useCallback(async (rideId: string) => {
+    setIsDeleting(rideId);
+    
+    try {
+      await apiCallWithCacheInvalidation(
+        `/api/rides/${rideId}`,
+        { method: 'DELETE' },
+        () => invalidateRideCache(rideId),
+        "Ride deleted successfully!",
+        "Failed to delete ride"
+      );
+    } catch (error: any) {
+      // Handle specific error cases
+      if (error.message?.includes('Only cancelled rides can be deleted')) {
+        toast({
+          title: "Cannot Delete Ride",
+          description: "Only cancelled rides can be deleted. Please cancel the ride first.",
+          variant: "destructive",
+        });
+      } else if (error.message?.includes('Ride not found')) {
+        toast({
+          title: "Ride Not Found",
+          description: "The ride you're trying to delete no longer exists.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Delete Failed",
+          description: error.message || "An unexpected error occurred while deleting the ride.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsDeleting(null);
+    }
+  }, [apiCallWithCacheInvalidation, invalidateRideCache]);
+
+  const handleRideStatusChange = useCallback(async (rideId: string, newStatus: string) => {
+    setIsUpdating(rideId);
+    
+    try {
+      await apiCallWithCacheInvalidation(
+        `/api/rides/${rideId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: newStatus })
+        },
+        () => invalidateRideCache(rideId),
+        `Ride ${newStatus === 'complete' ? 'completed' : 'cancelled'} successfully!`,
+        `Failed to ${newStatus} ride`
+      );
+    } catch (error) {
+      console.error('Status change error:', error);
+    } finally {
+      setIsUpdating(null);
+    }
+  }, [apiCallWithCacheInvalidation, invalidateRideCache]);
 
   const handleSearch = useCallback((value: string) => {
     setSearch(value);
@@ -115,7 +224,7 @@ export default function RidesPage() {
   }, []);
 
   const handleStatusChange = useCallback((value: string) => {
-    setStatus(value);
+    setStatus(value === 'all' ? '' : value);
     setPage(1); // Reset to first page on new filter
   }, []);
 
@@ -139,25 +248,97 @@ export default function RidesPage() {
         </TableCell>
         <TableCell className="hidden md:table-cell">{formatDate(ride.CreatedDateTime)}</TableCell>
         <TableCell className="hidden md:table-cell">{formatCurrency(ride.Fare)}</TableCell>
-        <TableCell className="hidden md:table-cell">{formatCurrency(ride.Distance)}</TableCell>
+        <TableCell className="hidden md:table-cell">{ride.Distance} Km</TableCell>
         <TableCell className="text-right">
           {permissions.view && (
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="icon" onClick={() => handleView(ride.Id)}>
+              <Button variant="ghost" size="icon" onClick={() => handleView(ride)}>
                 <Eye className="h-4 w-4" />
                 <span className="sr-only">View</span>
               </Button>
               {permissions.edit && (
-                <Button variant="ghost" size="icon" onClick={() => handleEdit(ride.Id)}>
-                  <Edit className="h-4 w-4" />
-                  <span className="sr-only">Edit</span>
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Edit className="h-4 w-4" />
+                      <span className="sr-only">Actions</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleEdit(ride)}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Details
+                    </DropdownMenuItem>
+                    {ride.Status !== 'COMPLETED' && (
+                      <DropdownMenuItem onClick={() => handleRideStatusChange(ride.Id, 'complete')}>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Mark Complete
+                      </DropdownMenuItem>
+                    )}
+                    {ride.Status !== 'CANCELLED' && (
+                      <DropdownMenuItem onClick={() => handleRideStatusChange(ride.Id, 'cancel')}>
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Cancel Ride
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
               {permissions.delete && (
-                <Button variant="ghost" size="icon" onClick={() => handleDelete(ride.Id)}>
-                  <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Delete</span>
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      disabled={isDeleting === ride.Id}
+                    >
+                      {isDeleting === ride.Id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                      <span className="sr-only">Delete</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Ride</AlertDialogTitle>
+                      <AlertDialogDescription className="space-y-2">
+                        <p>
+                          This action cannot be undone. This will permanently delete the ride
+                          <strong> #{ride.Id}</strong> and all associated data.
+                        </p>
+                        <div className="text-sm text-muted-foreground space-y-1">
+                          <p>• Ride details and history</p>
+                          <p>• Payment information</p>
+                          <p>• Driver and customer data</p>
+                          {ride.Status !== 'CANCELLED' && (
+                            <p className="text-amber-600 font-medium">
+                              ⚠️ Only cancelled rides can be deleted
+                            </p>
+                          )}
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDelete(ride.Id)}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        disabled={isDeleting === ride.Id}
+                      >
+                        {isDeleting === ride.Id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          'Delete Ride'
+                        )}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
             </div>
           )}
@@ -170,12 +351,6 @@ export default function RidesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Rides</h2>
-        {permissions.create && (
-          <Button variant="outline" size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Ride
-          </Button>
-        )}
       </div>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -206,12 +381,12 @@ export default function RidesPage() {
                     </p>
                   </div>
                   <div className="grid gap-2">
-                    <Select value={status} onValueChange={handleStatusChange}>
+                    <Select value={status || 'all'} onValueChange={handleStatusChange}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All Status</SelectItem>
+                        <SelectItem value="all">All Status</SelectItem>
                         <SelectItem value="COMPLETED">Completed</SelectItem>
                         <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
                         <SelectItem value="SCHEDULED">Scheduled</SelectItem>
@@ -255,8 +430,8 @@ export default function RidesPage() {
                   <TableHead className="hidden md:table-cell">Vehicle</TableHead>
                   <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead className="hidden md:table-cell">Date</TableHead>
-                  <TableHead className="hidden md:table-cell">Amount</TableHead>
-                  <TableHead className="hidden md:table-cell">Distance</TableHead>
+                  <TableHead className="hidden md:table-cell">Amount (₹)</TableHead>
+                  <TableHead className="hidden md:table-cell">Distance (Km)</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -300,6 +475,187 @@ export default function RidesPage() {
           </div>
         </div>
       </div>
+
+      {/* Ride Details Dialog */}
+      <Dialog open={isRideDetailsOpen} onOpenChange={setIsRideDetailsOpen}>
+        <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0 pb-4 border-b">
+            <DialogTitle className="text-lg font-semibold">
+              Ride Details #{rideData?.ride?.Id}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto pr-2 pb-4 pt-6">
+            {isLoadingRide ? (
+              <div className="space-y-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
+                ))}
+              </div>
+            ) : rideData?.ride ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Ride Information</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Ride ID</Label>
+                      <p className="text-sm font-mono">#{rideData.ride.Id}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+                      <Badge variant={getStatusVariant(rideData.ride.Status)}>
+                        {rideData.ride.Status}
+                      </Badge>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Created</Label>
+                      <p className="text-sm">{rideData.ride.createdAt}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Last Updated</Label>
+                      <p className="text-sm">{rideData.ride.updatedAt}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Route Information */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Route Details</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Pickup Location</Label>
+                      <p className="text-sm">{rideData.ride.PickUpLocation}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Drop Location</Label>
+                      <p className="text-sm">{rideData.ride.DropLocation}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Distance</Label>
+                      <p className="text-sm">{rideData.ride.totalDistance} Km</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Estimated Duration</Label>
+                      <p className="text-sm">{rideData.ride.estimatedDuration}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Customer Information */}
+                {rideData.ride.User && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Customer</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Name</Label>
+                        <p className="text-sm">{rideData.ride.User.Name}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Email</Label>
+                        <p className="text-sm">{rideData.ride.User.Email || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Mobile</Label>
+                        <p className="text-sm">{rideData.ride.User.MobileNumber}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Driver Information */}
+                {rideData.ride.Driver && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Driver</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Name</Label>
+                        <p className="text-sm">{rideData.ride.Driver.Name}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Email</Label>
+                        <p className="text-sm">{rideData.ride.Driver.Email || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Mobile</Label>
+                        <p className="text-sm">{rideData.ride.Driver.MobileNumber}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+                        <Badge variant={rideData.ride.Driver.IsOnline ? 'default' : 'secondary'}>
+                          {rideData.ride.Driver.IsOnline ? 'Online' : 'Offline'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Vehicle Information */}
+                {rideData.ride.Vehicle && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Vehicle</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Model</Label>
+                        <p className="text-sm">{rideData.ride.Vehicle.Model}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Number</Label>
+                        <p className="text-sm">{rideData.ride.Vehicle.VehicleNumber}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Type</Label>
+                        <p className="text-sm">{rideData.ride.Vehicle.VehicleType}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Information */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Payment</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Fare</Label>
+                      <p className="text-2xl font-bold">{formatCurrency(rideData.ride.Fare)}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Payment Mode</Label>
+                      <p className="text-sm">{rideData.ride.PaymentMode}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No ride data available</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Ride Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="w-[95vw] max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Ride #{selectedRide?.Id}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Edit functionality will be implemented here. This would include form fields for updating ride information.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+                Cancel
+              </Button>
+              <Button>
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

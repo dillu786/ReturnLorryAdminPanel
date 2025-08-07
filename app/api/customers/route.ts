@@ -16,20 +16,24 @@ export async function GET(request: NextRequest) {
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
     // Build where clause for filtering
-    const where = {
-      AND: [
-        // Search in name and email
-        search ? {
-          OR: [
-            { Name: { contains: search, mode: 'insensitive' } },
-            //{ Email: { contains: search, mode: 'insensitive' } },
-            { MobileNumber: { contains: search, mode: 'insensitive' } }
-          ]
-        } : {},
-        // Filter by status if provided
-        status ? { Status: status } : {}
-      ]
-    };
+    const whereConditions: any[] = [];
+    
+    // Search in name and mobile number
+    if (search) {
+      whereConditions.push({
+        OR: [
+          { Name: { contains: search, mode: 'insensitive' } },
+          { MobileNumber: { contains: search, mode: 'insensitive' } }
+        ]
+      });
+    }
+    
+    // Filter by status if provided
+    if (status) {
+      whereConditions.push({ IsActive: status === 'active' ? true : false });
+    }
+    
+    const where = whereConditions.length > 0 ? { AND: whereConditions } : {};
 
     // Get total count for pagination
     const totalCount = await prisma.user.count({ where });
@@ -63,7 +67,7 @@ export async function GET(request: NextRequest) {
             UserId: user.Id
           }
         }),
-        status: user.Status || 'active',
+        status: user.IsActive ? 'active' : 'inactive',
         joined: new Date(user.CreatedDate).toLocaleDateString()
       }))
     );

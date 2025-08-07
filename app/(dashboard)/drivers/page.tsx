@@ -15,10 +15,28 @@ import { toast } from "@/components/ui/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useCacheManager, CACHE_KEYS } from "@/lib/cache-utils"
 import { useCacheInvalidation } from "@/hooks/use-cache-invalidation"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 export default function DriversPage() {
   const { hasPermission } = usePermissions();
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [accountStatus, setAccountStatus] = useState("");
+  const [onlineStatus, setOnlineStatus] = useState("");
+  const [verificationStatus, setVerificationStatus] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
   const pageSize = 10;
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
@@ -76,13 +94,30 @@ export default function DriversPage() {
   }), [hasPermission]);
 
   const fetchDrivers = async() => {
-    const data = await fetch(`/api/drivers?page=${page}&pageSize=${pageSize}`);
-    const json = await data.json();
-    return json;
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        pageSize: pageSize.toString(),
+        ...(search && { search }),
+        ...(accountStatus && { accountStatus }),
+        ...(onlineStatus && { onlineStatus }),
+        ...(verificationStatus && { verificationStatus })
+      });
+
+      const response = await fetch(`/api/drivers?${params}`);
+      if (!response.ok) {
+        throw new Error(`API responded with status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Error fetching drivers:", error);
+      throw error;
+    }
   }
 
   const { data, isLoading, error } = useQuery({
-    queryKey: [CACHE_KEYS.DRIVERS, page],
+    queryKey: [CACHE_KEYS.DRIVERS, page, search, accountStatus, onlineStatus, verificationStatus],
     queryFn: fetchDrivers,
   });
 
@@ -99,6 +134,34 @@ export default function DriversPage() {
 
   const handleEdit = useCallback((driverId: string) => {
     console.log("Edit driver:", driverId);
+  }, []);
+
+  const handleSearch = useCallback((value: string) => {
+    setSearch(value);
+    setPage(1); // Reset to first page on new search
+  }, []);
+
+  const handleAccountStatusChange = useCallback((value: string) => {
+    setAccountStatus(value === 'all' ? '' : value);
+    setPage(1); // Reset to first page on new filter
+  }, []);
+
+  const handleOnlineStatusChange = useCallback((value: string) => {
+    setOnlineStatus(value === 'all' ? '' : value);
+    setPage(1); // Reset to first page on new filter
+  }, []);
+
+  const handleVerificationStatusChange = useCallback((value: string) => {
+    setVerificationStatus(value === 'all' ? '' : value);
+    setPage(1); // Reset to first page on new filter
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setSearch("");
+    setAccountStatus("");
+    setOnlineStatus("");
+    setVerificationStatus("");
+    setPage(1);
   }, []);
 
   const handleDocuments = useCallback((driverId: string) => {
@@ -309,24 +372,93 @@ export default function DriversPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Drivers</h2>
-        {permissions.create && (
-          <Button variant="outline" size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Driver
-          </Button>
-        )}
       </div>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex w-full items-center gap-2 sm:max-w-sm">
             <div className="relative w-full">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="search" placeholder="Search drivers..." className="w-full pl-8" />
+              <Input 
+                type="search" 
+                placeholder="Search drivers..." 
+                className="w-full pl-8"
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
             </div>
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-              <span className="sr-only">Filter</span>
-            </Button>
+            <Popover open={showFilters} onOpenChange={setShowFilters}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <Filter className="h-4 w-4" />
+                  <span className="sr-only">Filter</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <div className="grid gap-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium leading-none">Filters</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Filter drivers by status and verification
+                    </p>
+                  </div>
+                  <div className="grid gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Account Status</Label>
+                      <Select value={accountStatus || 'all'} onValueChange={handleAccountStatusChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select account status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Drivers</SelectItem>
+                          <SelectItem value="active">Active Drivers</SelectItem>
+                          <SelectItem value="inactive">Inactive Drivers</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Online Status</Label>
+                      <Select value={onlineStatus || 'all'} onValueChange={handleOnlineStatusChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select online status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Drivers</SelectItem>
+                          <SelectItem value="online">Online Drivers</SelectItem>
+                          <SelectItem value="offline">Offline Drivers</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Verification Status</Label>
+                      <Select value={verificationStatus || 'all'} onValueChange={handleVerificationStatusChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select verification status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Drivers</SelectItem>
+                          <SelectItem value="verified">Fully Verified</SelectItem>
+                          <SelectItem value="pending">Pending Verification</SelectItem>
+                          <SelectItem value="partially">Partially Verified</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {(search || accountStatus || onlineStatus || verificationStatus) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start"
+                      onClick={clearFilters}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Clear filters
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           {permissions.export && (
             <Button variant="outline" size="sm">
@@ -335,25 +467,37 @@ export default function DriversPage() {
             </Button>
           )}
         </div>
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead className="hidden md:table-cell">Email</TableHead>
-                <TableHead className="hidden md:table-cell">Status</TableHead>
-                <TableHead className="hidden md:table-cell">Vehicle</TableHead>
-                <TableHead className="hidden md:table-cell">Rating</TableHead>
-                <TableHead className="hidden md:table-cell">Rides</TableHead>
-                <TableHead className="hidden md:table-cell">Verified</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tableRows}
-            </TableBody>
-          </Table>
-        </div>
+        {isLoading ? (
+          <div className="py-12 text-center">Loading drivers...</div>
+        ) : error ? (
+          <div className="py-12 text-center text-red-500">Error loading drivers</div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead className="hidden md:table-cell">Email</TableHead>
+                  <TableHead className="hidden md:table-cell">Status</TableHead>
+                  <TableHead className="hidden md:table-cell">Vehicle</TableHead>
+                  <TableHead className="hidden md:table-cell">Rating</TableHead>
+                  <TableHead className="hidden md:table-cell">Rides</TableHead>
+                  <TableHead className="hidden md:table-cell">Verified</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {drivers.length > 0 ? tableRows : (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-4">
+                      {search || accountStatus || onlineStatus || verificationStatus ? 'No drivers found matching your criteria' : 'No drivers found'}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
         
         {/* Pagination Controls */}
         <div className="flex items-center justify-between px-2">
