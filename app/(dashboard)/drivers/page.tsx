@@ -37,7 +37,7 @@ export default function DriversPage() {
   const [onlineStatus, setOnlineStatus] = useState("");
   const [verificationStatus, setVerificationStatus] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const pageSize = 10;
+  const pageSize = 8;
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
   const [verifyingDocuments, setVerifyingDocuments] = useState<Set<string>>(new Set());
@@ -290,14 +290,37 @@ export default function DriversPage() {
 
   const handleViewImage = useCallback((imageUrl: string) => {
     if (imageUrl) {
-      window.open(imageUrl, '_blank');
+      window.open(imageUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      toast({
+        title: "Error",
+        description: "Image URL is not available",
+        variant: "destructive"
+      });
     }
   }, []);
 
   const handleDownload = async (fileKey: string, fileName: string) => {
     try {
+      if (!fileKey) {
+        toast({
+          title: "Error",
+          description: "File URL is not available",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Show loading toast
+      toast({
+        title: "Downloading...",
+        description: "Your file download will start shortly",
+      });
+
       const response = await fetch(`/api/download?key=${encodeURIComponent(fileKey)}&name=${encodeURIComponent(fileName)}`)
-      if (!response.ok) throw new Error('Download failed')
+      if (!response.ok) {
+        throw new Error(`Download failed with status: ${response.status}`)
+      }
       
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
@@ -308,8 +331,19 @@ export default function DriversPage() {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+
+      // Show success toast
+      toast({
+        title: "Success",
+        description: `${fileName} downloaded successfully`,
+      });
     } catch (error) {
       console.error('Download error:', error)
+      toast({
+        title: "Download Failed",
+        description: "Failed to download the file. Please try again.",
+        variant: "destructive"
+      });
     }
   }
 
@@ -529,7 +563,7 @@ export default function DriversPage() {
 
       {/* Documents Dialog */}
       <Dialog open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-        <DialogContent className="w-[95vw] max-w-6xl max-h-[90vh] overflow-hidden flex flex-col my-4 mx-auto mt-8">
+        <DialogContent className="w-[95vw] max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0 pb-4 border-b mb-2">
             <DialogTitle className="text-lg font-semibold">
               {driverData?.Name}'s Documents
@@ -553,11 +587,34 @@ export default function DriversPage() {
                   <CardContent>
                     {driverData?.DriverLicenseFrontImage ? (
                       <div className="space-y-4">
-                        <img
-                          src={driverData.DriverLicenseFrontImage}
-                          alt="License"
-                          className="w-full h-40 md:h-48 object-cover rounded-lg"
-                        />
+                        <div className="relative group">
+                          <img
+                            src={driverData.DriverLicenseFrontImage}
+                            alt="License"
+                            className="w-full h-40 md:h-48 object-cover rounded-lg cursor-pointer transition-transform group-hover:scale-105"
+                            onClick={() => handleViewImage(driverData.DriverLicenseFrontImage)}
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleViewImage(driverData.DriverLicenseFrontImage)}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleDownload(driverData.DriverLicenseFrontImage, `${driverData.Name}-license.jpg`)}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
                         <div className="flex flex-wrap justify-end gap-2">
                           <Button
                             variant="outline"
@@ -613,11 +670,34 @@ export default function DriversPage() {
                   <CardContent>
                     {driverData?.DriverLicenseBackImage ? (
                       <div className="space-y-4">
-                        <img
-                          src={driverData.DriverLicenseBackImage  }
-                          alt="Driving License Back Image"
-                          className="w-full h-40 md:h-48 object-cover rounded-lg"
-                        />
+                        <div className="relative group">
+                          <img
+                            src={driverData.DriverLicenseBackImage}
+                            alt="Driving License Back Image"
+                            className="w-full h-40 md:h-48 object-cover rounded-lg cursor-pointer transition-transform group-hover:scale-105"
+                            onClick={() => handleViewImage(driverData.DriverLicenseBackImage)}
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleViewImage(driverData.DriverLicenseBackImage)}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleDownload(driverData.DriverLicenseBackImage, `${driverData.Name}-license-back.jpg`)}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="outline"
@@ -673,11 +753,34 @@ export default function DriversPage() {
                   <CardContent>
                     {driverData?.PanImage ? (
                       <div className="space-y-4">
-                        <img
-                          src={driverData.PanImage}
-                          alt="PAN"
-                          className="w-full h-40 md:h-48 object-cover rounded-lg"
-                        />
+                        <div className="relative group">
+                          <img
+                            src={driverData.PanImage}
+                            alt="PAN"
+                            className="w-full h-40 md:h-48 object-cover rounded-lg cursor-pointer transition-transform group-hover:scale-105"
+                            onClick={() => handleViewImage(driverData.PanImage)}
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleViewImage(driverData.PanImage)}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleDownload(driverData.PanImage, `${driverData.Name}-pan.jpg`)}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="outline"
@@ -731,13 +834,36 @@ export default function DriversPage() {
                     <CardTitle className="text-sm font-medium">Profile Picture</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {driverData?.ProfileImage ? (
+                    {driverData?.DriverImage ? (
                       <div className="space-y-4">
-                        <img
-                          src={driverData.DriverImage}
-                          alt="Profile"
-                          className="w-full h-40 md:h-48 object-cover rounded-lg"
-                        />
+                        <div className="relative group">
+                          <img
+                            src={driverData.DriverImage}
+                            alt="Profile"
+                            className="w-full h-40 md:h-48 object-cover rounded-lg cursor-pointer transition-transform group-hover:scale-105"
+                            onClick={() => handleViewImage(driverData.DriverImage)}
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleViewImage(driverData.DriverImage)}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleDownload(driverData.DriverImage, `${driverData.Name}-profile.jpg`)}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="outline"
@@ -772,11 +898,34 @@ export default function DriversPage() {
                   <CardContent>
                     {driverData?.FrontSideAdhaarImage ? (
                       <div className="space-y-4">
-                        <img
-                          src={driverData.FrontSideAdhaarImage}
-                          alt="Aadhar Front"
-                          className="w-full h-40 md:h-48 object-cover rounded-lg"
-                        />
+                        <div className="relative group">
+                          <img
+                            src={driverData.FrontSideAdhaarImage}
+                            alt="Aadhar Front"
+                            className="w-full h-40 md:h-48 object-cover rounded-lg cursor-pointer transition-transform group-hover:scale-105"
+                            onClick={() => handleViewImage(driverData.FrontSideAdhaarImage)}
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleViewImage(driverData.FrontSideAdhaarImage)}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleDownload(driverData.FrontSideAdhaarImage, `${driverData.Name}-aadhar-front.jpg`)}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="outline"
@@ -830,11 +979,34 @@ export default function DriversPage() {
                   <CardContent>
                     {driverData?.BackSideAdhaarImage ? (
                       <div className="space-y-4">
-                        <img
-                          src={driverData.BackSideAdhaarImage}
-                          alt="Aadhar Back"
-                          className="w-full h-40 md:h-48 object-cover rounded-lg"
-                        />
+                        <div className="relative group">
+                          <img
+                            src={driverData.BackSideAdhaarImage}
+                            alt="Aadhar Back"
+                            className="w-full h-40 md:h-48 object-cover rounded-lg cursor-pointer transition-transform group-hover:scale-105"
+                            onClick={() => handleViewImage(driverData.BackSideAdhaarImage)}
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleViewImage(driverData.BackSideAdhaarImage)}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleDownload(driverData.BackSideAdhaarImage, `${driverData.Name}-aadhar-back.jpg`)}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="outline"

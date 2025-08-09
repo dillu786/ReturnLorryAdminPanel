@@ -10,6 +10,7 @@ import { Search, Download, Eye, Check, X } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CACHE_KEYS } from "@/lib/cache-utils"
+import { toast } from "@/components/ui/use-toast"
 
 // Mock permissions - replace with your actual permission system
 const permissions = {
@@ -23,7 +24,7 @@ export default function DocumentsPage() {
   const [activeTab, setActiveTab] = useState("drivers")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
-  const pageSize = 10
+  const pageSize = 8
 
   // Fetch drivers with their documents
   const { data: driversData, isLoading: isLoadingDrivers } = useQuery({
@@ -53,37 +54,111 @@ export default function DocumentsPage() {
 
   const handleView = useCallback((imageUrl: string) => {
     if (imageUrl) {
-      window.open(imageUrl, '_blank')
+      window.open(imageUrl, '_blank', 'noopener,noreferrer')
+    } else {
+      toast({
+        title: "Error",
+        description: "Image URL is not available",
+        variant: "destructive"
+      });
     }
   }, [])
 
   const handleDownload = useCallback(async (imageUrl: string, fileName: string) => {
-    if (imageUrl) {
-      try {
-        const response = await fetch(imageUrl)
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = fileName
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
-      } catch (error) {
-        console.error('Error downloading document:', error)
+    try {
+      if (!imageUrl) {
+        toast({
+          title: "Error",
+          description: "File URL is not available",
+          variant: "destructive"
+        });
+        return;
       }
+
+      // Show loading toast
+      toast({
+        title: "Downloading...",
+        description: "Your file download will start shortly",
+      });
+
+      const response = await fetch(`/api/download?key=${encodeURIComponent(imageUrl)}&name=${encodeURIComponent(fileName)}`)
+      if (!response.ok) {
+        throw new Error(`Download failed with status: ${response.status}`)
+      }
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      // Show success toast
+      toast({
+        title: "Success",
+        description: `${fileName} downloaded successfully`,
+      });
+    } catch (error) {
+      console.error('Download error:', error)
+      toast({
+        title: "Download Failed",
+        description: "Failed to download the file. Please try again.",
+        variant: "destructive"
+      });
     }
   }, [])
 
   const handleVerify = useCallback(async (userId: string, userType: 'driver' | 'owner') => {
-    // Implement verification logic
-    console.log('Verify', userId, userType)
+    // Show loading toast
+    toast({
+      title: "Verifying...",
+      description: "Please wait while we verify the documents.",
+    });
+    
+    try {
+      // Implement verification logic
+      console.log('Verify', userId, userType)
+      
+      // Show success toast
+      toast({
+        title: "Success",
+        description: "Documents verified successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Verification Failed",
+        description: "Failed to verify documents. Please try again.",
+        variant: "destructive"
+      });
+    }
   }, [])
 
   const handleReject = useCallback(async (userId: string, userType: 'driver' | 'owner') => {
-    // Implement rejection logic
-    console.log('Reject', userId, userType)
+    // Show loading toast
+    toast({
+      title: "Processing...",
+      description: "Please wait while we process the rejection.",
+    });
+    
+    try {
+      // Implement rejection logic
+      console.log('Reject', userId, userType)
+      
+      // Show success toast
+      toast({
+        title: "Success",
+        description: "Documents rejected successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Rejection Failed",
+        description: "Failed to reject documents. Please try again.",
+        variant: "destructive"
+      });
+    }
   }, [])
 
   const renderUserDocuments = (user: any, userType: 'driver' | 'owner') => (
@@ -102,26 +177,47 @@ export default function DocumentsPage() {
           <div className="space-y-2">
             <div className="text-sm font-medium">Driver's License</div>
             {user.LicenseImage ? (
-              <div className="relative group">
-                <img
-                  src={user.LicenseImage}
-                  alt="License"
-                  className="h-32 w-full object-cover rounded-lg"
-                />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <div className="space-y-2">
+                <div className="relative group">
+                  <img
+                    src={user.LicenseImage}
+                    alt="License"
+                    className="h-32 w-full object-cover rounded-lg cursor-pointer transition-transform group-hover:scale-105"
+                    onClick={() => handleView(user.LicenseImage)}
+                  />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-lg">
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => handleView(user.LicenseImage)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => handleDownload(user.LicenseImage, `${user.Name}-license.jpg`)}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-1">
                   <Button
-                    variant="secondary"
-                    size="icon"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleView(user.LicenseImage)}
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3 w-3 mr-1" />
+                    View
                   </Button>
                   <Button
-                    variant="secondary"
-                    size="icon"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleDownload(user.LicenseImage, `${user.Name}-license.jpg`)}
                   >
-                    <Download className="h-4 w-4" />
+                    <Download className="h-3 w-3 mr-1" />
+                    Download
                   </Button>
                 </div>
               </div>
@@ -136,26 +232,47 @@ export default function DocumentsPage() {
           <div className="space-y-2">
             <div className="text-sm font-medium">Aadhar Card</div>
             {user.AadharImage ? (
-              <div className="relative group">
-                <img
-                  src={user.AadharImage}
-                  alt="Aadhar"
-                  className="h-32 w-full object-cover rounded-lg"
-                />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <div className="space-y-2">
+                <div className="relative group">
+                  <img
+                    src={user.AadharImage}
+                    alt="Aadhar"
+                    className="h-32 w-full object-cover rounded-lg cursor-pointer transition-transform group-hover:scale-105"
+                    onClick={() => handleView(user.AadharImage)}
+                  />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-lg">
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => handleView(user.AadharImage)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => handleDownload(user.AadharImage, `${user.Name}-aadhar.jpg`)}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-1">
                   <Button
-                    variant="secondary"
-                    size="icon"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleView(user.AadharImage)}
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3 w-3 mr-1" />
+                    View
                   </Button>
                   <Button
-                    variant="secondary"
-                    size="icon"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleDownload(user.AadharImage, `${user.Name}-aadhar.jpg`)}
                   >
-                    <Download className="h-4 w-4" />
+                    <Download className="h-3 w-3 mr-1" />
+                    Download
                   </Button>
                 </div>
               </div>
@@ -170,26 +287,47 @@ export default function DocumentsPage() {
           <div className="space-y-2">
             <div className="text-sm font-medium">PAN Card</div>
             {user.PanImage ? (
-              <div className="relative group">
-                <img
-                  src={user.PanImage}
-                  alt="PAN"
-                  className="h-32 w-full object-cover rounded-lg"
-                />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <div className="space-y-2">
+                <div className="relative group">
+                  <img
+                    src={user.PanImage}
+                    alt="PAN"
+                    className="h-32 w-full object-cover rounded-lg cursor-pointer transition-transform group-hover:scale-105"
+                    onClick={() => handleView(user.PanImage)}
+                  />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-lg">
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => handleView(user.PanImage)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => handleDownload(user.PanImage, `${user.Name}-pan.jpg`)}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-1">
                   <Button
-                    variant="secondary"
-                    size="icon"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleView(user.PanImage)}
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3 w-3 mr-1" />
+                    View
                   </Button>
                   <Button
-                    variant="secondary"
-                    size="icon"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleDownload(user.PanImage, `${user.Name}-pan.jpg`)}
                   >
-                    <Download className="h-4 w-4" />
+                    <Download className="h-3 w-3 mr-1" />
+                    Download
                   </Button>
                 </div>
               </div>
@@ -204,26 +342,47 @@ export default function DocumentsPage() {
           <div className="space-y-2">
             <div className="text-sm font-medium">Profile Picture</div>
             {user.ProfileImage ? (
-              <div className="relative group">
-                <img
-                  src={user.ProfileImage}
-                  alt="Profile"
-                  className="h-32 w-full object-cover rounded-lg"
-                />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <div className="space-y-2">
+                <div className="relative group">
+                  <img
+                    src={user.ProfileImage}
+                    alt="Profile"
+                    className="h-32 w-full object-cover rounded-lg cursor-pointer transition-transform group-hover:scale-105"
+                    onClick={() => handleView(user.ProfileImage)}
+                  />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-lg">
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => handleView(user.ProfileImage)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => handleDownload(user.ProfileImage, `${user.Name}-profile.jpg`)}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-1">
                   <Button
-                    variant="secondary"
-                    size="icon"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleView(user.ProfileImage)}
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3 w-3 mr-1" />
+                    View
                   </Button>
                   <Button
-                    variant="secondary"
-                    size="icon"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleDownload(user.ProfileImage, `${user.Name}-profile.jpg`)}
                   >
-                    <Download className="h-4 w-4" />
+                    <Download className="h-3 w-3 mr-1" />
+                    Download
                   </Button>
                 </div>
               </div>

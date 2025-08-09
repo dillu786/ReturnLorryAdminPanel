@@ -25,6 +25,7 @@ import { useDebounce } from "@/hooks/use-debounce"
 import { OwnerDetailsModal } from "@/components/owner-details-modal"
 import { useRouter } from "next/navigation"
 import { tree } from "next/dist/build/templates/app-page"
+import { Label } from "@/components/ui/label"
 
 interface Owner {
   Id: string
@@ -41,8 +42,10 @@ export default function OwnersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [driversCount, setDriversCount] = useState("");
+  const [joinedDate, setJoinedDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const pageSize = 10;
+  const pageSize = 8;
   
   // Debounce search input to prevent too many API calls
   const debouncedSearch = useDebounce(search, 300);
@@ -64,7 +67,9 @@ export default function OwnersPage() {
         page: page.toString(),
         pageSize: pageSize.toString(),
         ...(debouncedSearch && { search: debouncedSearch }),
-        ...(status && { status })
+        ...(status && { status }),
+        ...(driversCount && { driversCount }),
+        ...(joinedDate && { joinedDate })
       });
 
       const response = await fetch(`/api/owners?${params}`);
@@ -80,7 +85,7 @@ export default function OwnersPage() {
   }
 
   const { data, isLoading, error } = useQuery({
-    queryKey: [CACHE_KEYS.OWNERS, page, debouncedSearch, status],
+    queryKey: [CACHE_KEYS.OWNERS, page, debouncedSearch, status, driversCount, joinedDate],
     queryFn: fetchOwners
   });
 
@@ -109,13 +114,25 @@ export default function OwnersPage() {
   }, []);
 
   const handleStatusChange = useCallback((value: string) => {
-    setStatus(value);
+    setStatus(value === 'all' ? '' : value);
+    setPage(1); // Reset to first page on new filter
+  }, []);
+
+  const handleDriversCountChange = useCallback((value: string) => {
+    setDriversCount(value === 'all' ? '' : value);
+    setPage(1); // Reset to first page on new filter
+  }, []);
+
+  const handleJoinedDateChange = useCallback((value: string) => {
+    setJoinedDate(value === 'all' ? '' : value);
     setPage(1); // Reset to first page on new filter
   }, []);
 
   const clearFilters = useCallback(() => {
     setSearch("");
     setStatus("");
+    setDriversCount("");
+    setJoinedDate("");
     setPage(1);
   }, []);
 
@@ -225,23 +242,59 @@ export default function OwnersPage() {
                   <div className="space-y-2">
                     <h4 className="font-medium leading-none">Filters</h4>
                     <p className="text-sm text-muted-foreground">
-                      Filter owners by status
+                      Filter owners by various criteria
                     </p>
                   </div>
-                  <div className="grid gap-2">
-                    <Select value={status} onValueChange={handleStatusChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">All Status</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                        <SelectItem value="blocked">Blocked</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Account Status</Label>
+                      <Select value={status || 'all'} onValueChange={handleStatusChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select account status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Owners</SelectItem>
+                          <SelectItem value="active">Active Owners</SelectItem>
+                          <SelectItem value="inactive">Inactive Owners</SelectItem>
+                          <SelectItem value="suspended">Suspended Owners</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Number of Drivers</Label>
+                      <Select value={driversCount || 'all'} onValueChange={handleDriversCountChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select drivers count" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Owners</SelectItem>
+                          <SelectItem value="none">No Drivers (0)</SelectItem>
+                          <SelectItem value="low">Few Drivers (1-5)</SelectItem>
+                          <SelectItem value="medium">Some Drivers (6-15)</SelectItem>
+                          <SelectItem value="high">Many Drivers (16+)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Join Period</Label>
+                      <Select value={joinedDate || 'all'} onValueChange={handleJoinedDateChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select join period" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Time</SelectItem>
+                          <SelectItem value="today">Today</SelectItem>
+                          <SelectItem value="week">This Week</SelectItem>
+                          <SelectItem value="month">This Month</SelectItem>
+                          <SelectItem value="quarter">This Quarter</SelectItem>
+                          <SelectItem value="year">This Year</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  {(search || status) && (
+                  {(search || status || driversCount || joinedDate) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -285,7 +338,7 @@ export default function OwnersPage() {
                 {owners.length > 0 ? tableRows : (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-4">
-                      No owners found
+                      {search || status || driversCount || joinedDate ? 'No owners found matching your criteria' : 'No owners found'}
                     </TableCell>
                   </TableRow>
                 )}
