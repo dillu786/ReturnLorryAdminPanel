@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, Plus, Search, Filter, Eye, Edit, Trash2, ChevronLeft, ChevronRight, X, User, Shield, ShieldOff, Ban, Save, Loader2 } from "lucide-react"
+import { Download, Plus, Search, Filter, Eye, Edit, ChevronLeft, ChevronRight, X, User, Shield, ShieldOff, Ban, Save, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useMemo, useCallback, useState } from "react"
@@ -48,6 +48,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { StatusToggleButton } from "@/components/ui/status-toggle-button"
+import { useStatusToggle } from "@/hooks/use-status-toggle"
 
 export default function UsersPage() {
   const { hasPermission } = usePermissions();
@@ -130,6 +132,13 @@ export default function UsersPage() {
   const queryClient = useQueryClient();
   const { invalidateUserCache, apiCallWithCacheInvalidation } = useCacheInvalidation();
 
+  // Use the universal status toggle hook
+  const { toggleStatus: toggleUserStatus } = useStatusToggle({
+    entityType: 'user',
+    cacheKey: CACHE_KEYS.USERS,
+    apiEndpoint: '/api/users/toggle-status'
+  });
+
   // Memoize action handlers
   const handleView = useCallback((user: any) => {
     setSelectedUser(user);
@@ -148,60 +157,45 @@ export default function UsersPage() {
     setIsEditOpen(true);
   }, []);
 
-  const handleDelete = useCallback(async (userId: string) => {
-    setIsDeleting(userId);
-    
-    try {
-      await apiCallWithCacheInvalidation(
-        `/api/users/${userId}`,
-        { method: 'DELETE' },
-        () => invalidateUserCache(userId),
-        "User deleted successfully!",
-        "Failed to delete user"
-      );
-    } catch (error: any) {
-      // Handle specific error cases
-      if (error.message?.includes('Cannot delete user with existing bookings')) {
-        toast({
-          title: "Cannot Delete User",
-          description: "This user has existing bookings and cannot be deleted. Please deactivate the user instead.",
-          variant: "destructive",
-        });
-      } else if (error.message?.includes('User not found')) {
-        toast({
-          title: "User Not Found",
-          description: "The user you're trying to delete no longer exists.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Delete Failed",
-          description: error.message || "An unexpected error occurred while deleting the user.",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setIsDeleting(null);
-    }
-  }, [apiCallWithCacheInvalidation, invalidateUserCache]);
+
 
   const handleStatusChange = useCallback(async (userId: string, newStatus: string) => {
     try {
-      await apiCallWithCacheInvalidation(
-        `/api/users/${userId}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: newStatus })
-        },
-        () => invalidateUserCache(userId),
-        `User ${newStatus === 'activate' ? 'activated' : newStatus === 'deactivate' ? 'deactivated' : 'blocked'} successfully!`,
-        `Failed to ${newStatus} user`
-      );
+      const response = await fetch('/api/users/toggle-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userId: parseInt(userId),
+          action: newStatus 
+        })
+      });
+      
+      if (response.ok) {
+        // Invalidate cache
+        invalidateUserCache(userId);
+        queryClient.invalidateQueries({ queryKey: [CACHE_KEYS.USERS] });
+        
+        toast({
+          title: "Success",
+          description: `User ${newStatus === 'activate' ? 'activated' : newStatus === 'deactivate' ? 'deactivated' : 'blocked'} successfully!`,
+        });
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Error",
+          description: errorData.error || `Failed to ${newStatus} user`,
+          variant: "destructive"
+        });
+      }
     } catch (error) {
       console.error('Status change error:', error);
+      toast({
+        title: "Error",
+        description: `Failed to ${newStatus} user`,
+        variant: "destructive"
+      });
     }
-  }, [apiCallWithCacheInvalidation, invalidateUserCache]);
+  }, [invalidateUserCache, queryClient]);
 
   const handleSearch = useCallback((value: string) => {
     setSearch(value);
@@ -341,100 +335,20 @@ export default function UsersPage() {
                 <span className="sr-only">View</span>
               </Button>
               {permissions.edit && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <Edit className="h-4 w-4" />
-                      <span className="sr-only">Actions</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleEdit(user)}>
-                      <User className="h-4 w-4 mr-2" />
-                      Edit Details
-                    </DropdownMenuItem>
-                    {user.status !== 'active' && (
-                      <DropdownMenuItem onClick={() => handleStatusChange(user.Id, 'activate')}>
-                        <Shield className="h-4 w-4 mr-2" />
-                        Activate
-                      </DropdownMenuItem>
-                    )}
-                    {user.status === 'active' && (
-                      <DropdownMenuItem onClick={() => handleStatusChange(user.Id, 'deactivate')}>
-                        <ShieldOff className="h-4 w-4 mr-2" />
-                        Deactivate
-                      </DropdownMenuItem>
-                    )}
-                    {user.status !== 'blocked' && (
-                      <DropdownMenuItem onClick={() => handleStatusChange(user.Id, 'block')}>
-                        <Ban className="h-4 w-4 mr-2" />
-                        Block
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              {permissions.delete && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      disabled={isDeleting === user.Id}
-                    >
-                      {isDeleting === user.Id ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                      <span className="sr-only">Delete</span>
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete User</AlertDialogTitle>
-                      <AlertDialogDescription className="space-y-2">
-                        <p>
-                          This action cannot be undone. This will permanently delete the user
-                          <strong> "{user.Name}"</strong> and all their data.
-                        </p>
-                        <div className="text-sm text-muted-foreground space-y-1">
-                          <p>• User profile and account information</p>
-                          <p>• All associated data and preferences</p>
-                          {user.rides > 0 && (
-                            <p className="text-amber-600 font-medium">
-                              ⚠️ This user has {user.rides} ride(s) - deletion may be restricted
-                            </p>
-                          )}
-                        </div>
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => handleDelete(user.Id)}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        disabled={isDeleting === user.Id}
-                      >
-                        {isDeleting === user.Id ? (
-                          <>
-                            <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            Deleting...
-                          </>
-                        ) : (
-                          'Delete User'
-                        )}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <StatusToggleButton
+                  entityId={user.Id}
+                  entityName={user.Name}
+                  entityType="user"
+                  isActive={user.IsActive}
+                  onToggle={toggleUserStatus}
+                />
               )}
             </div>
           )}
         </TableCell>
       </TableRow>
     ))
-  ), [users, permissions, handleView, handleEdit, handleDelete, handleStatusChange, isDeleting]);
+  ), [users, permissions, handleView, handleEdit, handleStatusChange, isDeleting]);
 
   return (
     <div className="flex flex-col gap-6">

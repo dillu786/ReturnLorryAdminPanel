@@ -1,11 +1,16 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Search, Filter, Eye, Edit } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { getRoles } from "@/app/actions/role-actions"
-import { DeleteRoleButton } from "@/components/delete-role-button"
+import { StatusToggleButton } from "@/components/ui/status-toggle-button"
+import { useStatusToggle } from "@/hooks/use-status-toggle"
+import { toast } from "@/components/ui/use-toast"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { CACHE_KEYS } from "@/lib/cache-utils"
 
 interface Role {
   id: string;
@@ -17,8 +22,26 @@ interface Role {
   };
 }
 
-export default async function AccessControlPage() {
-  const roles = await getRoles();
+export default function AccessControlPage() {
+  const queryClient = useQueryClient();
+  
+  // Use the universal status toggle hook
+  const { toggleStatus: toggleRoleStatus } = useStatusToggle({
+    entityType: 'role',
+    cacheKey: CACHE_KEYS.ROLES,
+    apiEndpoint: '/api/roles/toggle-status'
+  });
+  
+  const { data: roles = [] } = useQuery({
+    queryKey: [CACHE_KEYS.ROLES],
+    queryFn: async () => {
+      const response = await fetch('/api/roles')
+      if (!response.ok) {
+        throw new Error('Failed to fetch roles')
+      }
+      return response.json()
+    },
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -57,12 +80,12 @@ export default async function AccessControlPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {roles.map((role) => (
+              {roles.map((role: Role) => (
                 <TableRow key={role.id}>
                   <TableCell className="font-medium">{role.name}</TableCell>
                   <TableCell className="hidden md:table-cell">{role.description}</TableCell>
                   <TableCell className="hidden md:table-cell">0</TableCell>
-                  <TableCell className="hidden md:table-cell">{role._count.permissions}</TableCell>
+                  <TableCell className="hidden md:table-cell">{role._count.role_permissions}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     {role.isSystemRole ? (
                       <Badge variant="secondary">System</Badge>
@@ -84,7 +107,15 @@ export default async function AccessControlPage() {
                           <span className="sr-only">Edit</span>
                         </Button>
                       </Link>
-                      {!role.isSystemRole && <DeleteRoleButton roleId={role.id} roleName={role.name} />}
+                      {!role.isSystemRole && (
+                        <StatusToggleButton
+                          entityId={role.id}
+                          entityName={role.name}
+                          entityType="role"
+                          isActive={true}
+                          onToggle={toggleRoleStatus}
+                        />
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

@@ -2,41 +2,47 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Trash } from "lucide-react"
-import { deleteRole } from "@/app/actions/role-actions"
+import { Power, PowerOff } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
 
-interface DeleteRoleButtonProps {
+interface ToggleRoleStatusButtonProps {
   roleId: string
   roleName: string
+  isActive: boolean
+  onToggle: (roleId: string, newStatus: boolean) => Promise<void>
 }
 
-export function DeleteRoleButton({ roleId, roleName }: DeleteRoleButtonProps) {
-  const [isDeleting, setIsDeleting] = useState(false)
+export function ToggleRoleStatusButton({ roleId, roleName, isActive, onToggle }: ToggleRoleStatusButtonProps) {
+  const [isUpdating, setIsUpdating] = useState(false)
 
-  const handleDelete = async () => {
-    if (confirm(`Are you sure you want to delete the role "${roleName}"? This action cannot be undone.`)) {
-      setIsDeleting(true)
+  const handleToggle = async () => {
+    if (confirm(`Are you sure you want to ${isActive ? 'deactivate' : 'activate'} the role "${roleName}"?`)) {
+      setIsUpdating(true)
       try {
-        // In a real app, you would get the current user ID from the session
-        const currentUserId = "current-user-id"
-        const response = await deleteRole(roleId, currentUserId)
-
-        if (!response.success) {
-          alert(response.error || "Failed to delete role")
-        }
+        await onToggle(roleId, !isActive)
       } catch (error) {
-        console.error("Error deleting role:", error)
-        alert("An error occurred while deleting the role")
+        console.error("Error updating role status:", error)
+        alert("An error occurred while updating the role status")
       } finally {
-        setIsDeleting(false)
+        setIsUpdating(false)
       }
     }
   }
 
   return (
-    <Button variant="ghost" size="icon" title="Delete Role" onClick={handleDelete} disabled={isDeleting}>
-      <Trash className="h-4 w-4 text-destructive" />
-      <span className="sr-only">Delete</span>
+    <Button 
+      variant="ghost" 
+      size="icon" 
+      title={`${isActive ? 'Deactivate' : 'Activate'} Role`} 
+      onClick={handleToggle} 
+      disabled={isUpdating}
+    >
+      {isActive ? (
+        <PowerOff className="h-4 w-4 text-orange-500" />
+      ) : (
+        <Power className="h-4 w-4 text-green-500" />
+      )}
+      <span className="sr-only">{isActive ? 'Deactivate' : 'Activate'}</span>
     </Button>
   )
 } 

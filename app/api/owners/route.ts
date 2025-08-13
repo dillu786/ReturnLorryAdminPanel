@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
     // Build where clause for filtering
-    const where = {
+    const where: any = {
       AND: [
         // Search in name and email
         search ? {
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
           ]
         } : {},
         // Filter by status if provided
-        status ? { Status: status } : {}
+        status ? { IsActive: status === 'active' ? true : false } : {}
       ]
     };
 
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
           OwnerId: owner.Id             
         }
       }),
-      status: owner.Status || 'active',
+      status: owner.IsActive ? 'active' : 'inactive',
       joined: new Date(owner.CreatedDate).toLocaleDateString()
     })));
 
@@ -82,3 +82,4 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+

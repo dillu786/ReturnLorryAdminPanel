@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, Plus, Search, Filter, Eye, Edit, Trash2, FileText, ChevronLeft, ChevronRight } from "lucide-react"
+import { Download, Plus, Search, Filter, Eye, Edit, FileText, ChevronLeft, ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useMemo, useCallback, useState } from "react"
@@ -16,6 +16,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useCacheManager, CACHE_KEYS } from "@/lib/cache-utils"
 import { useCacheInvalidation } from "@/hooks/use-cache-invalidation"
 import { Label } from "@/components/ui/label"
+import { StatusToggleButton } from "@/components/ui/status-toggle-button"
+import { useStatusToggle } from "@/hooks/use-status-toggle"
 import {
   Select,
   SelectContent,
@@ -31,6 +33,7 @@ import {
 
 export default function DriversPage() {
   const { hasPermission } = usePermissions();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [accountStatus, setAccountStatus] = useState("");
@@ -41,6 +44,11 @@ export default function DriversPage() {
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
   const [verifyingDocuments, setVerifyingDocuments] = useState<Set<string>>(new Set());
+  const { toggleStatus } = useStatusToggle({
+    entityType: 'driver',
+    cacheKey: CACHE_KEYS.DRIVERS,
+    apiEndpoint: '/api/drivers/toggle-status'
+  });
   
   // Helper function to check if all documents are verified
   const isAllDocumentsVerified = useCallback((driver: any) => {
@@ -168,9 +176,12 @@ export default function DriversPage() {
     console.log("View documents:", driverId);
   }, []);
 
-  const handleSuspend = useCallback((driverId: string) => {
-    console.log("Suspend driver:", driverId);
-  }, []);
+  // Use the universal status toggle hook
+  const { toggleStatus: toggleDriverStatus } = useStatusToggle({
+    entityType: 'driver',
+    cacheKey: CACHE_KEYS.DRIVERS,
+    apiEndpoint: '/api/drivers/toggle-status'
+  });
 
   // Memoize the table rows to prevent unnecessary re-renders
   const tableRows = useMemo(() => (
@@ -181,12 +192,12 @@ export default function DriversPage() {
         <TableCell className="hidden md:table-cell">
           <Badge
             variant={
-              driver.IsOnline
+              driver.IsActive
                 ? "default"
                 : "secondary"
             }
           >
-            {driver.IsOnline ? "active" : "inactive"}
+            {driver.IsActive ? "Active" : "Inactive"}
           </Badge>
         </TableCell>
         <TableCell className="hidden md:table-cell">{driver.DriverVehicle?.[0]?.Vehicle?.Name || '-'}</TableCell>
@@ -249,20 +260,22 @@ export default function DriversPage() {
                 </Button>
               )} */}
               {permissions.suspend && (
-                <Button variant="ghost" size="icon" onClick={() => handleSuspend(driver.Id)}>
-                  <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Suspend</span>
-                </Button>
+                <StatusToggleButton
+                  entityId={driver.Id}
+                  entityName={driver.Name}
+                  entityType="driver"
+                  isActive={driver.IsActive}
+                  onToggle={toggleDriverStatus}
+                />
               )}
             </div>
           )}
         </TableCell>
       </TableRow>
     ))
-  ), [drivers, permissions, handleView, handleEdit, handleDocuments, handleSuspend, isAllDocumentsVerified, getVerificationCount, getVerificationDetails]);
+  ), [drivers, permissions, handleView, handleEdit, handleDocuments, isAllDocumentsVerified, getVerificationCount, getVerificationDetails]);
 
   // Fetch driver details when selected
-  const queryClient = useQueryClient();
   const cacheManager = useCacheManager(queryClient);
   const { invalidateDriverCache, apiCallWithCacheInvalidation } = useCacheInvalidation();
   const { data: driverData, isLoading: isLoadingDriver } = useQuery({

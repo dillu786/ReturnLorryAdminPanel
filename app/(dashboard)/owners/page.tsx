@@ -1,10 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, Plus, Search, Filter, Eye, Edit, Trash2, Car, ChevronLeft, ChevronRight, X, FileText } from "lucide-react"
+import { Download, Plus, Search, Filter, Eye, Edit, Car, ChevronLeft, ChevronRight, X, FileText, Power, PowerOff } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useMemo, useCallback, useState } from "react"
@@ -21,11 +21,22 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useDebounce } from "@/hooks/use-debounce"
 import { OwnerDetailsModal } from "@/components/owner-details-modal"
 import { useRouter } from "next/navigation"
 import { tree } from "next/dist/build/templates/app-page"
 import { Label } from "@/components/ui/label"
+import { toast } from "@/components/ui/use-toast"
+import { useCacheInvalidation } from "@/hooks/use-cache-invalidation"
+import { StatusToggleButton } from "@/components/ui/status-toggle-button"
+import { useStatusToggle } from "@/hooks/use-status-toggle"
 
 interface Owner {
   Id: string
@@ -45,7 +56,12 @@ export default function OwnersPage() {
   const [driversCount, setDriversCount] = useState("");
   const [joinedDate, setJoinedDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
   const pageSize = 8;
+  
+  const queryClient = useQueryClient();
+  const { invalidateOwnerCache, apiCallWithCacheInvalidation } = useCacheInvalidation();
   
   // Debounce search input to prevent too many API calls
   const debouncedSearch = useDebounce(search, 300);
@@ -104,9 +120,12 @@ export default function OwnersPage() {
     console.log("Edit owner:", ownerId);
   }, []);
 
-  const handleDelete = useCallback((ownerId: string) => {
-    console.log("Delete owner:", ownerId);
-  }, []);
+  // Use the universal status toggle hook
+  const { toggleStatus: toggleOwnerStatus } = useStatusToggle({
+    entityType: 'owner',
+    cacheKey: CACHE_KEYS.OWNERS,
+    apiEndpoint: '/api/owners/toggle-status'
+  });
 
   const handleSearch = useCallback((value: string) => {
     setSearch(value);
@@ -147,7 +166,11 @@ export default function OwnersPage() {
       setIsDetailsModalOpen(true);
     } catch (error) {
       console.error("Error fetching owner details:", error);
-      // You might want to show a toast notification here
+      toast({
+        title: "Error",
+        description: "Failed to fetch owner details",
+        variant: "destructive"
+      });
     }
   };
 
@@ -164,10 +187,9 @@ export default function OwnersPage() {
               owner.IsActive === true
                 ? "default"
                 : "secondary"
-              
             }
           >
-            {owner.IsActive=== true ? "Active":"InActive"}
+            {owner.IsActive === true ? "Active" : "Inactive"}
           </Badge>
         </TableCell>
         <TableCell className="hidden md:table-cell">{owner.drivers}</TableCell>
@@ -179,32 +201,36 @@ export default function OwnersPage() {
                 <Eye className="h-4 w-4" />
                 <span className="sr-only">View</span>
               </Button>
-              {/* <Button variant="ghost" size="icon" onClick={() => fetchOwnerDetails(owner.Id)}>
-                <FileText className="h-4 w-4" />
-                <span className="sr-only">Documents</span>
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => fetchOwnerDetails(owner.Id)}>
-                <Car className="h-4 w-4" />
-                <span className="sr-only">Vehicles</span>
-              </Button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Power className="h-4 w-4" />
+                    <span className="sr-only">More actions</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleView(owner.Id)}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Details
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               {permissions.edit && (
-                <Button variant="ghost" size="icon" onClick={() => handleEdit(owner.Id)}>
-                  <Edit className="h-4 w-4" />
-                  <span className="sr-only">Edit</span>
-                </Button>
-              )} */}
-              {permissions.delete && (
-                <Button variant="ghost" size="icon" onClick={() => handleDelete(owner.Id)}>
-                  <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Delete</span>
-                </Button>
+                <StatusToggleButton
+                  entityId={owner.Id}
+                  entityName={owner.Name}
+                  entityType="owner"
+                  isActive={owner.IsActive}
+                  onToggle={toggleOwnerStatus}
+                />
               )}
             </div>
           )}
         </TableCell>
       </TableRow>
     ))
-  ), [owners, permissions, handleView, handleEdit, handleDelete]);
+  ), [owners, permissions, handleView, toggleOwnerStatus]);
 
   return (
     <div className="flex flex-col gap-6">

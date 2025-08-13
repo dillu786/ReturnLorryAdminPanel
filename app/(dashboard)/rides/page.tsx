@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useQuery } from "@tanstack/react-query"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, Plus, Search, Filter, Eye, Edit, Trash2, ChevronLeft, ChevronRight, X, MapPin, Clock, DollarSign, User, Truck, CheckCircle, XCircle, Loader2 } from "lucide-react"
+import { Download, Plus, Search, Filter, Eye, ChevronLeft, ChevronRight, X, MapPin, Clock, DollarSign, User, Truck, CheckCircle, XCircle, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useMemo, useCallback, useState } from "react"
@@ -58,7 +58,7 @@ export default function RidesPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedRide, setSelectedRide] = useState<any>(null);
   const [isRideDetailsOpen, setIsRideDetailsOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
+
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const pageSize = 10;
@@ -122,7 +122,7 @@ export default function RidesPage() {
   });
 
   // Determine status badge variant
-  const getStatusVariant = (status) => {
+  const getStatusVariant = (status: string) => {
     if (!status) return "outline";
     
     const statusLower = status.toLowerCase();
@@ -133,7 +133,7 @@ export default function RidesPage() {
   };
 
   // Format date
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string) => {
     if (!dateString) return "";
     try {
       return new Date(dateString).toISOString().split('T')[0];
@@ -143,9 +143,9 @@ export default function RidesPage() {
   };
   
   // Format currency
-  const formatCurrency = (amount) => {
+  const formatCurrency = (amount: number) => {
     if (amount === null || amount === undefined) return "₹0.00";
-    return `₹${parseFloat(amount).toFixed(2)}`;
+    return `₹${parseFloat(amount.toString()).toFixed(2)}`;
   };
 
   // Memoize action handlers
@@ -154,69 +154,52 @@ export default function RidesPage() {
     setIsRideDetailsOpen(true);
   }, []);
 
-  const handleEdit = useCallback((ride: any) => {
-    setSelectedRide(ride);
-    setIsEditOpen(true);
-  }, []);
 
-  const handleDelete = useCallback(async (rideId: string) => {
-    setIsDeleting(rideId);
-    
-    try {
-      await apiCallWithCacheInvalidation(
-        `/api/rides/${rideId}`,
-        { method: 'DELETE' },
-        () => invalidateRideCache(rideId),
-        "Ride deleted successfully!",
-        "Failed to delete ride"
-      );
-    } catch (error: any) {
-      // Handle specific error cases
-      if (error.message?.includes('Only cancelled rides can be deleted')) {
-        toast({
-          title: "Cannot Delete Ride",
-          description: "Only cancelled rides can be deleted. Please cancel the ride first.",
-          variant: "destructive",
-        });
-      } else if (error.message?.includes('Ride not found')) {
-        toast({
-          title: "Ride Not Found",
-          description: "The ride you're trying to delete no longer exists.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Delete Failed",
-          description: error.message || "An unexpected error occurred while deleting the ride.",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setIsDeleting(null);
-    }
-  }, [apiCallWithCacheInvalidation, invalidateRideCache]);
+
+
 
   const handleRideStatusChange = useCallback(async (rideId: string, newStatus: string) => {
     setIsUpdating(rideId);
     
     try {
-      await apiCallWithCacheInvalidation(
-        `/api/rides/${rideId}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: newStatus })
-        },
-        () => invalidateRideCache(rideId),
-        `Ride ${newStatus === 'complete' ? 'completed' : 'cancelled'} successfully!`,
-        `Failed to ${newStatus} ride`
-      );
+      const status = newStatus === 'complete' ? 'COMPLETED' : 'CANCELLED';
+      const response = await fetch('/api/rides/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          rideId: parseInt(rideId),
+          status 
+        })
+      });
+      
+      if (response.ok) {
+        // Invalidate cache
+        invalidateRideCache(rideId);
+        window.location.reload(); // Simple refresh for now
+        
+        toast({
+          title: "Success",
+          description: `Ride ${newStatus === 'complete' ? 'completed' : 'cancelled'} successfully!`,
+        });
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Error",
+          description: errorData.error || `Failed to ${newStatus} ride`,
+          variant: "destructive"
+        });
+      }
     } catch (error) {
       console.error('Status change error:', error);
+      toast({
+        title: "Error",
+        description: `Failed to ${newStatus} ride`,
+        variant: "destructive"
+      });
     } finally {
       setIsUpdating(null);
     }
-  }, [apiCallWithCacheInvalidation, invalidateRideCache]);
+  }, [invalidateRideCache]);
 
   const handleSearch = useCallback((value: string) => {
     setSearch(value);
@@ -257,95 +240,38 @@ export default function RidesPage() {
                 <span className="sr-only">View</span>
               </Button>
               {permissions.edit && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <Edit className="h-4 w-4" />
-                      <span className="sr-only">Actions</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleEdit(ride)}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit Details
-                    </DropdownMenuItem>
-                    {ride.Status !== 'COMPLETED' && (
-                      <DropdownMenuItem onClick={() => handleRideStatusChange(ride.Id, 'complete')}>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Mark Complete
-                      </DropdownMenuItem>
-                    )}
-                    {ride.Status !== 'CANCELLED' && (
-                      <DropdownMenuItem onClick={() => handleRideStatusChange(ride.Id, 'cancel')}>
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Cancel Ride
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              {permissions.delete && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
+                <>
+                  {ride.Status !== 'COMPLETED' && (
                     <Button 
                       variant="ghost" 
-                      size="icon"
-                      disabled={isDeleting === ride.Id}
+                      size="icon" 
+                      onClick={() => handleRideStatusChange(ride.Id, 'complete')}
+                      title="Mark Complete"
                     >
-                      {isDeleting === ride.Id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                      <span className="sr-only">Delete</span>
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span className="sr-only">Mark Complete</span>
                     </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Ride</AlertDialogTitle>
-                      <AlertDialogDescription className="space-y-2">
-                        <p>
-                          This action cannot be undone. This will permanently delete the ride
-                          <strong> #{ride.Id}</strong> and all associated data.
-                        </p>
-                        <div className="text-sm text-muted-foreground space-y-1">
-                          <p>• Ride details and history</p>
-                          <p>• Payment information</p>
-                          <p>• Driver and customer data</p>
-                          {ride.Status !== 'CANCELLED' && (
-                            <p className="text-amber-600 font-medium">
-                              ⚠️ Only cancelled rides can be deleted
-                            </p>
-                          )}
-                        </div>
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => handleDelete(ride.Id)}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        disabled={isDeleting === ride.Id}
-                      >
-                        {isDeleting === ride.Id ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Deleting...
-                          </>
-                        ) : (
-                          'Delete Ride'
-                        )}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                  )}
+                  {ride.Status !== 'CANCELLED' && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => handleRideStatusChange(ride.Id, 'cancel')}
+                      title="Cancel Ride"
+                    >
+                      <XCircle className="h-4 w-4 text-red-500" />
+                      <span className="sr-only">Cancel Ride</span>
+                    </Button>
+                  )}
+                </>
               )}
+
             </div>
           )}
         </TableCell>
       </TableRow>
     ))
-  ), [rides, permissions, handleView, handleEdit, handleDelete]);
+  ), [rides, permissions, handleView]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -478,7 +404,7 @@ export default function RidesPage() {
 
       {/* Ride Details Dialog */}
       <Dialog open={isRideDetailsOpen} onOpenChange={setIsRideDetailsOpen}>
-        <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="w-[95vw] sm:w-[90vw] md:w-[85vw] lg:w-[80vw] xl:w-[75vw] max-w-4xl max-h-[70vh] sm:max-h-[65vh] md:max-h-[60vh] overflow-hidden flex flex-col mx-auto mb-8 sm:mb-12 md:mb-16">
           <DialogHeader className="flex-shrink-0 pb-4 border-b">
             <DialogTitle className="text-lg font-semibold">
               Ride Details #{rideData?.ride?.Id}
@@ -635,27 +561,7 @@ export default function RidesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Ride Dialog */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="w-[95vw] max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Edit Ride #{selectedRide?.Id}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Edit functionality will be implemented here. This would include form fields for updating ride information.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsEditOpen(false)}>
-                Cancel
-              </Button>
-              <Button>
-                Save Changes
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+
     </div>
   )
 }

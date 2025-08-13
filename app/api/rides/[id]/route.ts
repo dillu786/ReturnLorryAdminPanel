@@ -163,50 +163,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const rideId = parseInt(params.id);
 
-    // Check if ride exists
-    const ride = await prisma.bookings.findUnique({
-      where: { Id: rideId }
-    });
-
-    if (!ride) {
-      return NextResponse.json(
-        { error: "Ride not found" },
-        { status: 404 }
-      );
-    }
-
-    // Check if ride can be deleted (only cancelled rides can be deleted)
-    if (ride.Status !== 'CANCELLED') {
-      return NextResponse.json(
-        { error: "Only cancelled rides can be deleted" },
-        { status: 400 }
-      );
-    }
-
-    // Delete the ride
-    await prisma.bookings.delete({
-      where: { Id: rideId }
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: "Ride deleted successfully"
-    });
-  } catch (error) {
-    console.error('Error deleting ride:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete ride' },
-      { status: 500 }
-    );
-  }
-}
 
 // Helper function to calculate estimated duration based on distance
 function calculateEstimatedDuration(distance: string): string {
