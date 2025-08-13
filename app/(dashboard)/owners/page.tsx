@@ -210,12 +210,6 @@ export default function OwnersPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Owners</h2>
-        {permissions.create && (
-          <Button variant="outline" size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Owner
-          </Button>
-        )}
       </div>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

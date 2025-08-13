@@ -24,6 +24,10 @@ export const CACHE_KEYS = {
   // Permissions
   PERMISSIONS: 'permissions',
   ROLES: 'roles',
+  
+  // Dashboard
+  DASHBOARD_STATS: 'dashboard-stats',
+  RECENT_ACTIVITIES: 'recent-activities',
 } as const;
 
 // Cache invalidation utilities
